@@ -406,15 +406,6 @@ public:
 
   void clearOctomap();
 
-  // Called to update the planning scene with a new message.
-  bool newPlanningSceneMessage(const moveit_msgs::msg::PlanningScene& scene);
-
-protected:
-  /** @brief Initialize the planning scene monitor
-   *  @param scene The scene instance to fill with data (an instance is allocated if the one passed in is not allocated)
-   */
-  void initialize(const planning_scene::PlanningScenePtr& scene);
-
   /** \brief Lock the scene for reading (multiple threads can lock for reading at the same time) */
   void lockSceneRead();
 
@@ -428,6 +419,15 @@ protected:
   /** \brief Lock the scene from writing (only one thread can lock for writing and no other thread can lock for reading)
    */
   void unlockSceneWrite();
+
+  // Called to update the planning scene with a new message.
+  bool newPlanningSceneMessage(const moveit_msgs::msg::PlanningScene& scene);
+
+protected:
+  /** @brief Initialize the planning scene monitor
+   *  @param scene The scene instance to fill with data (an instance is allocated if the one passed in is not allocated)
+   */
+  void initialize(const planning_scene::PlanningScenePtr& scene);
 
   /** @brief Configure the collision matrix for a particular scene */
   void configureCollisionMatrix(const planning_scene::PlanningScenePtr& scene);
