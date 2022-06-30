@@ -46,7 +46,7 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <cassert>
 
-#include <boost/assert.hpp>
+#include <rclcpp/duration.hpp>
 
 /* Terminology
    * Model Frame: RobotModel's root frame == PlanningScene's planning frame
@@ -65,8 +65,8 @@ MOVEIT_CLASS_FORWARD(RobotState);  // Defines RobotStatePtr, ConstPtr, WeakPtr..
    joint_group_variable_values
     the state is valid or not. Returns true if the state is valid. This call is allowed to modify \e robot_state (e.g.,
    set \e joint_group_variable_values) */
-typedef boost::function<bool(RobotState* robot_state, const JointModelGroup* joint_group,
-                             const double* joint_group_variable_values)>
+typedef std::function<bool(RobotState* robot_state, const JointModelGroup* joint_group,
+                           const double* joint_group_variable_values)>
     GroupStateValidityCallbackFn;
 
 /** \brief Representation of a robot's state. This includes position,
@@ -1355,7 +1355,7 @@ public:
     {
       throw Exception("Invalid link");
     }
-    BOOST_VERIFY(checkLinkTransforms());
+    assert(checkLinkTransforms());
     return global_link_transforms_[link->getLinkIndex()];
   }
 
@@ -1387,7 +1387,7 @@ public:
 
   const Eigen::Isometry3d& getCollisionBodyTransform(const LinkModel* link, std::size_t index) const
   {
-    BOOST_VERIFY(checkCollisionTransforms());
+    assert(checkCollisionTransforms());
     return global_collision_body_transforms_[link->getFirstCollisionBodyTransformIndex() + index];
   }
 
@@ -1415,7 +1415,7 @@ public:
 
   const Eigen::Isometry3d& getJointTransform(const JointModel* joint) const
   {
-    BOOST_VERIFY(checkJointTransforms(joint));
+    assert(checkJointTransforms(joint));
     return variable_joint_transforms_[joint->getJointIndex()];
   }
 
