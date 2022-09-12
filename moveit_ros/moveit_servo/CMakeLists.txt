@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.22)
 project(moveit_servo)
 
 # C++ Libraries #################################################
@@ -135,7 +135,7 @@ install(
     ${POSE_TRACKING}
     ${SERVO_COMPONENT_NODE}
     ${SERVO_CONTROLLER_INPUT}
-  EXPORT export_${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}Targets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
@@ -159,7 +159,7 @@ install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
 
-ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
 
 #############
@@ -209,15 +209,14 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_servo_collision ${THIS_PACKAGE_INCLUDE_DEPENDS})
   add_ros_test(test/launch/test_servo_collision.test.py TIMEOUT 120 ARGS "test_binary_dir:=${CMAKE_CURRENT_BINARY_DIR}")
 
-  # TODO(sjahr): Debug and re-enable this test
   # Servo singularity checking integration test
-  #ament_add_gtest_executable(test_servo_singularity
-  #      test/test_servo_singularity.cpp
-  #      test/servo_launch_test_common.hpp
-  #)
-  #target_link_libraries(test_servo_singularity ${SERVO_PARAM_LIB_NAME})
-  #ament_target_dependencies(test_servo_singularity ${THIS_PACKAGE_INCLUDE_DEPENDS})
-  #add_ros_test(test/launch/test_servo_singularity.test.py TIMEOUT 120 ARGS "test_binary_dir:=${CMAKE_CURRENT_BINARY_DIR}")
+  ament_add_gtest_executable(test_servo_singularity
+        test/test_servo_singularity.cpp
+        test/servo_launch_test_common.hpp
+  )
+  target_link_libraries(test_servo_singularity ${SERVO_PARAM_LIB_NAME})
+  ament_target_dependencies(test_servo_singularity ${THIS_PACKAGE_INCLUDE_DEPENDS})
+  add_ros_test(test/launch/test_servo_singularity.test.py TIMEOUT 120 ARGS "test_binary_dir:=${CMAKE_CURRENT_BINARY_DIR}")
 
   # pose_tracking
   ament_add_gtest_executable(test_servo_pose_tracking
