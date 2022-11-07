@@ -5,7 +5,7 @@ lma_kinematics:
     default_value: 500,
     description: "Maximum solver iterations",
     validation: {
-      gt_eq<>: [ 0.0 ]
+      lower_bounds<>: [ 0.0 ]
     }
   }
 
@@ -14,7 +14,7 @@ lma_kinematics:
     default_value: 0.00001,
     description: "Epsilon. Default is 1e-5",
     validation: {
-      gt<>: [ 0.0 ]
+      #gt<>: [ 0.0 ]
     }
   }
 
@@ -26,7 +26,7 @@ lma_kinematics:
                   * > 1.0: orientation has more importance than position
                   * = 0.0: perform position-only IK",
     validation: {
-      gt_eq<>: [ 0.0 ]
+      lower_bounds<>: [ 0.0 ]
     }
   }
 

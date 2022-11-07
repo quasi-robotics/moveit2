@@ -12,7 +12,7 @@ kinematics:
     default_value: 0.1,
     description: "kinematics solver search resolution",
     validation: {
-      gt_eq<>: [ 0.0 ]
+      lower_bounds<>: [ 0.0 ]
     }
   }
   kinematics_solver_timeout: {
@@ -20,6 +20,6 @@ kinematics:
     default_value: 0.05,
     description: "kinematics solver timeout",
     validation: {
-      gt<>: [ 0.0 ]
+      #gt<>: [ 0.0 ]
     }
   }
