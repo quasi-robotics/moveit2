@@ -113,13 +113,6 @@ public:
                          const std::shared_ptr<tf2_ros::Buffer>& tf_buffer, const rclcpp::Duration& wait_for_servers)
     : opt_(opt), node_(node), tf_buffer_(tf_buffer)
   {
-    // We have no control on how the passed node is getting executed. To make sure MGI is functional, we're creating
-    // our own callback group which is managed in a separate callback thread
-    callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive,
-                                                   false /* don't spin with node executor */);
-    callback_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
-    callback_thread_ = std::thread([this]() { callback_executor_.spin(); });
-
     robot_model_ = opt.robot_model_ ? opt.robot_model_ : getSharedRobotModel(node_, opt.robot_description_);
     if (!getRobotModel())
     {
@@ -135,6 +128,13 @@ public:
       RCLCPP_FATAL_STREAM(LOGGER, error);
       throw std::runtime_error(error);
     }
+
+    // We have no control on how the passed node is getting executed. To make sure MGI is functional, we're creating
+    // our own callback group which is managed in a separate callback thread
+    callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive,
+                                                   false /* don't spin with node executor */);
+    callback_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
+    callback_thread_ = std::thread([this]() { callback_executor_.spin(); });
 
     joint_model_group_ = getRobotModel()->getJointModelGroup(opt.group_name_);
 
