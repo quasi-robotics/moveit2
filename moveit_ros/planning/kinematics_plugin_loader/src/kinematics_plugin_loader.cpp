@@ -250,8 +250,6 @@ moveit::core::SolverAllocatorFn KinematicsPluginLoader::getLoaderFunction(const 
       // read the list of plugin names for possible kinematics solvers
       for (const srdf::Model::Group& known_group : known_groups)
       {
-        groups_.push_back(known_group.name_);
-
         std::string kinematics_param_prefix = robot_description_ + "_kinematics." + known_group.name_;
         group_param_listener_.try_emplace(known_group.name_,
                                           std::make_shared<kinematics::ParamListener>(node_, kinematics_param_prefix));
@@ -259,6 +257,12 @@ moveit::core::SolverAllocatorFn KinematicsPluginLoader::getLoaderFunction(const 
 
         std::string kinematics_solver_param_name = kinematics_param_prefix + ".kinematics_solver";
         const auto kinematics_solver = group_params_.at(known_group.name_).kinematics_solver;
+
+        if(kinematics_solver.empty())
+          continue;   // if kinematics solver was not specified in parameters, it is not needed for this group
+
+        groups_.push_back(known_group.name_);
+
         possible_kinematics_solvers[known_group.name_] = kinematics_solver;
         RCLCPP_DEBUG(LOGGER, "Found kinematics solver '%s' for group '%s'.", kinematics_solver.c_str(),
                      known_group.name_.c_str());
