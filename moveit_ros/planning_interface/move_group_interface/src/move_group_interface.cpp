@@ -894,7 +894,7 @@ public:
       return moveit::core::MoveItErrorCode::SUCCESS;
 
     // wait until send_goal_opts.result_callback is called
-    while (!done)
+    while (!done && rclcpp::ok())
     {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
