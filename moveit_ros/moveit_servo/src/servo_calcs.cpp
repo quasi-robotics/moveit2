@@ -43,7 +43,7 @@
 #include <mutex>
 
 #include <realtime_tools/thread_priority.hpp>
-#include <std_msgs/msg/bool.h>
+#include <std_msgs/msg/bool.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 // #include <moveit_servo/make_shared_from_pool.h> // TODO(adamp): create an issue about this

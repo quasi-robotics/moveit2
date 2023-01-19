@@ -37,7 +37,7 @@
 
 #pragma once
 
-#include <geometry_msgs/msg/pose_stamped.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <moveit/moveit_cpp/moveit_cpp.h>
 #include <moveit/moveit_cpp/plan_solutions.hpp>
 #include <moveit/planning_interface/planning_response.h>
@@ -202,7 +202,7 @@ public:
 
   /** \brief Execute the latest computed solution trajectory computed by plan(). By default this function terminates
    * after the execution is complete. The execution can be run in background by setting blocking to false. */
-  bool execute(bool blocking = true);
+  [[deprecated("Use MoveItCpp::execute()")]] bool execute(bool blocking = true);
 
   /** \brief Return the last plan solution*/
   const planning_interface::MotionPlanResponse& getLastMotionPlanResponse();
