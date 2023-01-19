@@ -46,7 +46,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   std_srvs
   tf2_eigen
   trajectory_msgs
-  realtime_tools
 )
 
 find_package(ament_cmake REQUIRED)
