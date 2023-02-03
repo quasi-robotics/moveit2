@@ -142,6 +142,11 @@ public:
     std::scoped_lock slock(lock_);
     for (auto const& [group, solver] : possible_kinematics_solvers_)
     {
+      // Don't bother trying to load a solver for the wrong group
+      if (group != jmg->getName())
+      {
+        continue;
+      }
       try
       {
         result = kinematics_loader_->createUniqueInstance(solver);
@@ -264,6 +269,7 @@ moveit::core::SolverAllocatorFn KinematicsPluginLoader::getLoaderFunction(const 
           continue;
         }
 
+        // Only push back a group if it has a kinematics solver.
         groups_.push_back(known_group.name_);
 
         possible_kinematics_solvers[known_group.name_] = kinematics_solver;
