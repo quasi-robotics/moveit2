@@ -97,7 +97,7 @@ void RobotModel::buildModel(const urdf::ModelInterface& urdf_model, const srdf::
     root_joint_ = buildRecursive(nullptr, root_link_ptr, srdf_model);
     if (root_joint_)
       root_link_ = root_joint_->getChildLinkModel();
-    RCLCPP_DEBUG(LOGGER, "... building mimic joints");
+    RCLCPP_DEBUG(LOGGER, "... got root link %s, building mimic joints", root_link_->getName().c_str());
     buildMimic(urdf_model);
 
     RCLCPP_DEBUG(LOGGER, "... computing joint indexing");
@@ -260,6 +260,7 @@ void RobotModel::buildJointInfo()
 
   for (const auto& joint : joint_model_vector_)
   {
+    RCLCPP_DEBUG(LOGGER, "Processing joint %s", joint->getName().c_str());
     const std::vector<std::string>& name_order = joint->getVariableNames();
 
     // compute index map
@@ -267,6 +268,7 @@ void RobotModel::buildJointInfo()
     {
       for (std::size_t j = 0; j < name_order.size(); ++j)
       {
+        RCLCPP_DEBUG(LOGGER, " ... variable %s", name_order[j].c_str());
         joint_variables_index_map_[name_order[j]] = variable_count_ + j;
         variable_names_.push_back(name_order[j]);
         joints_of_variable_.push_back(joint);
@@ -842,6 +844,10 @@ JointModel* RobotModel::buildRecursive(LinkModel* parent, const urdf::Link* urdf
 {
   // construct the joint
   JointModel* joint = constructJointModel(urdf_link, srdf_model);
+  RCLCPP_DEBUG(LOGGER, "buildRecursive for link: %s (parent joint type: %d), parent: %s, constructed joint: %s of type: %d",
+               urdf_link->name.c_str(), urdf_link->parent_joint ? urdf_link->parent_joint->type : -1,
+               parent ? parent->getName().c_str() : "<null>",
+               joint ? joint->getName().c_str() : "<null>", static_cast<int>(joint->getType()));
 
   if (joint == nullptr)
     return nullptr;
@@ -876,8 +882,12 @@ JointModel* RobotModel::buildRecursive(LinkModel* parent, const urdf::Link* urdf
   for (const urdf::LinkSharedPtr& child_link : urdf_link->child_links)
   {
     JointModel* jm = buildRecursive(link, child_link.get(), srdf_model);
-    if (jm)
+    if (jm) {
+      RCLCPP_DEBUG(LOGGER, "Adding joint model %s to parent link %s and child link %s", jm->getName().c_str(), link->getName().c_str(), child_link->name.c_str());
       link->addChildJointModel(jm);
+    }
+    else
+      RCLCPP_DEBUG(LOGGER, "NOT adding joint model to parent link %s and child link %s", link->getName().c_str(), child_link->name.c_str());
   }
   return joint;
 }
