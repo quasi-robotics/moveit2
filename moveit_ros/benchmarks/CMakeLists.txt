@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(moveit_ros_benchmarks)
+project(moveit_ros_benchmarks LANGUAGES CXX)
 
 # Common cmake code applied to all moveit packages
 find_package(moveit_common REQUIRED)
@@ -59,7 +59,7 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
-  INCLUDES DESTINATION include
+  INCLUDES DESTINATION include/moveit_ros_benchmarks
 )
 
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET)
@@ -73,7 +73,7 @@ install(
 )
 
 install(DIRECTORY include/
-  DESTINATION include
+  DESTINATION include/moveit_ros_benchmarks
 )
 
 install(PROGRAMS scripts/moveit_benchmark_statistics.py
