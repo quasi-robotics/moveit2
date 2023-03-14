@@ -85,7 +85,7 @@ OccupancyMapMonitor::OccupancyMapMonitor(std::unique_ptr<MiddlewareHandle> middl
   // Get the parameters
   parameters_ = middleware_handle_->getParameters();
 
-  RCLCPP_DEBUG(LOGGER, "Using resolution = %lf m for building octomap", parameters_.map_resolution);
+  RCLCPP_DEBUG(LOGGER, "Using resolution = %lf m for building octomap in frame '%s'", parameters_.map_resolution, parameters_.map_frame.c_str());
 
   if (tf_buffer_ != nullptr && parameters_.map_frame.empty())
   {
@@ -193,6 +193,7 @@ void OccupancyMapMonitor::setMapFrame(const std::string& frame)
 {
   std::lock_guard<std::mutex> _(parameters_lock_);  // we lock since an updater could specify a new frame for us
   parameters_.map_frame = frame;
+  RCLCPP_DEBUG(LOGGER, "Setting map frame to %s", frame.c_str());
 }
 
 ShapeHandle OccupancyMapMonitor::excludeShape(const shapes::ShapeConstPtr& shape)
