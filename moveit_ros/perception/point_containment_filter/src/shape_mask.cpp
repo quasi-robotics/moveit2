@@ -175,6 +175,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
     // Cloud iterators are not incremented in the for loop, because of the pragma
     // Comment out below parallelization as it can result in very high CPU consumption
     //#pragma omp parallel for schedule(dynamic)
+    int ni = 0;
     for (int i = 0; i < static_cast<int>(np); ++i)
     {
       Eigen::Vector3d pt = Eigen::Vector3d(*(iter_x + i), *(iter_y + i), *(iter_z + i));
@@ -186,6 +187,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
       }
       else if ((bound.center - pt).squaredNorm() < radius_squared)
       {
+        ++ni;
         for (std::set<SeeShape>::const_iterator it = bodies_.begin(); it != bodies_.end() && out == OUTSIDE; ++it)
         {
           if (it->body->containsPoint(pt))
@@ -194,7 +196,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
       }
       mask[i] = out;
     }
-    RCLCPP_DEBUG(LOGGER, "end %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
+    RCLCPP_DEBUG(LOGGER, "end %f, ni: %d", (rclcpp::Clock().now() - start).seconds() * 1000.0, ni);
   }
 }
 
