@@ -232,7 +232,9 @@ void PointCloudOctomapUpdater::cloudMsgCallback(const sensor_msgs::msg::PointClo
 
   /* mask out points on the robot */
   shape_mask_->maskContainment(*cloud_msg, sensor_origin_eigen, 0.0, max_range_, mask_);
+  RCLCPP_DEBUG(LOGGER, "Processed 5.1 point cloud in %lf ms", (node_->now() - start).seconds() * 1000.0);
   updateMask(*cloud_msg, sensor_origin_eigen, mask_);
+  RCLCPP_DEBUG(LOGGER, "Processed 5.2 point cloud in %lf ms", (node_->now() - start).seconds() * 1000.0);
 
   octomap::KeySet free_cells, occupied_cells, model_cells, clip_cells;
   std::unique_ptr<sensor_msgs::msg::PointCloud2> filtered_cloud;

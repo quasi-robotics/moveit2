@@ -39,6 +39,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
+#include <rclcpp/clock.hpp>
 
 static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.ros.perception.shape_mask");
 
@@ -122,6 +123,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
                                                           const double min_sensor_dist, const double max_sensor_dist,
                                                           std::vector<int>& mask)
 {
+  auto start = rclcpp::Clock().now();
   std::scoped_lock _(shapes_lock_);
   const unsigned int np = data_in.data.size() / data_in.point_step;
   mask.resize(np);
@@ -135,6 +137,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
     Eigen::Isometry3d tmp;
     bspheres_.resize(bodies_.size());
     std::size_t j = 0;
+    RCLCPP_DEBUG(LOGGER, "before transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
     for (std::set<SeeShape>::const_iterator it = bodies_.begin(); it != bodies_.end(); ++it)
     {
       if (!transform_callback_(it->handle, tmp))
@@ -155,12 +158,15 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
         it->body->computeBoundingSphere(bspheres_[j++]);
       }
     }
+    RCLCPP_DEBUG(LOGGER, "after transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
 
     // compute a sphere that bounds the entire robot
     bodies::BoundingSphere bound;
     bodies::mergeBoundingSpheres(bspheres_, bound);
     const double radius_squared = bound.radius * bound.radius;
 
+    RCLCPP_DEBUG(LOGGER, "after merging spheres %f, bound center: %f, %f, %f, radius: %f", (rclcpp::Clock().now() - start).seconds() * 1000.0,
+                  bound.center.x(), bound.center.y(), bound.center.z(), bound.radius);
     // we now decide which points we keep
     sensor_msgs::PointCloud2ConstIterator<float> iter_x(data_in, "x");
     sensor_msgs::PointCloud2ConstIterator<float> iter_y(data_in, "y");
@@ -188,6 +194,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
       }
       mask[i] = out;
     }
+    RCLCPP_DEBUG(LOGGER, "end %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
   }
 }
 
