@@ -94,6 +94,7 @@ void MoveGroupMoveAction::executeMoveCallback(const std::shared_ptr<MGActionGoal
   else
     executeMoveCallbackPlanAndExecute(goal, action_res);
 
+  RCLCPP_INFO(LOGGER, "executed.. error_code: %d", action_res->error_code.val);
   bool planned_trajectory_empty = trajectory_processing::isTrajectoryEmpty(action_res->planned_trajectory);
   // @todo: Response messages
   RCLCPP_INFO_STREAM(LOGGER, getActionResultString(action_res->error_code, planned_trajectory_empty,
@@ -111,7 +112,9 @@ void MoveGroupMoveAction::executeMoveCallback(const std::shared_ptr<MGActionGoal
     goal->abort(action_res);
   }
 
+  RCLCPP_DEBUG(LOGGER, "executed.. setting move state to IDLE");
   setMoveState(IDLE, goal);
+  RCLCPP_DEBUG(LOGGER, "executed.. all done");
   preempt_requested_ = false;
 }
 
