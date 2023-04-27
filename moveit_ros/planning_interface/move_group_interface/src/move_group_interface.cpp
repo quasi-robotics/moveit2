@@ -112,7 +112,7 @@ public:
                          const std::shared_ptr<tf2_ros::Buffer>& tf_buffer, const rclcpp::Duration& wait_for_servers)
     : opt_(opt), node_(node), tf_buffer_(tf_buffer)
   {
-    robot_model = opt.robot_model ? opt.robot_model : getSharedRobotModel(node_, opt.robot_description);
+    robot_model_ = opt.robot_model ? opt.robot_model : getSharedRobotModel(node_, opt.robot_description);
 
     if (!getRobotModel())
     {
@@ -170,7 +170,7 @@ public:
                               planning_scene_monitor::PlanningSceneMonitor::DEFAULT_ATTACHED_COLLISION_OBJECT_TOPIC),
         1);
 
-    current_state_monitor_ = getSharedStateMonitor(node_, robot_model, tf_buffer_);
+    current_state_monitor_ = getSharedStateMonitor(node_, robot_model_, tf_buffer_);
 
     move_action_client_ = rclcpp_action::create_client<moveit_msgs::action::MoveGroup>(
         node_, rclcpp::names::append(opt_.move_group_namespace, move_group::MOVE_ACTION), callback_group_);
@@ -218,7 +218,7 @@ public:
 
   const moveit::core::RobotModelConstPtr& getRobotModel() const
   {
-    return robot_model;
+    return robot_model_;
   }
 
   const moveit::core::JointModelGroup* getJointModelGroup() const
@@ -1262,7 +1262,7 @@ public:
     if (constraints_storage_)
     {
       moveit_warehouse::ConstraintsWithMetadata msg_m;
-      if (constraints_storage_->getConstraints(msg_m, constraint, robot_model->getName(), opt_.group_name))
+      if (constraints_storage_->getConstraints(msg_m, constraint, robot_model_->getName(), opt_.group_name))
       {
         path_constraints_ =
             std::make_unique<moveit_msgs::msg::Constraints>(static_cast<moveit_msgs::msg::Constraints>(*msg_m));
@@ -1300,7 +1300,7 @@ public:
 
     std::vector<std::string> c;
     if (constraints_storage_)
-      constraints_storage_->getKnownConstraints(c, robot_model->getName(), opt_.group_name);
+      constraints_storage_->getKnownConstraints(c, robot_model_->getName(), opt_.group_name);
 
     return c;
   }
@@ -1381,7 +1381,7 @@ private:
   rclcpp::executors::SingleThreadedExecutor callback_executor_;
   std::thread callback_thread_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-  moveit::core::RobotModelConstPtr robot_model;
+  moveit::core::RobotModelConstPtr robot_model_;
   planning_scene_monitor::CurrentStateMonitorPtr current_state_monitor_;
 
   std::shared_ptr<rclcpp_action::Client<moveit_msgs::action::MoveGroup>> move_action_client_;
@@ -1646,8 +1646,8 @@ double MoveGroupInterface::computeCartesianPath(const std::vector<geometry_msgs:
                                                 bool avoid_collisions, moveit_msgs::msg::MoveItErrorCodes* error_code)
 {
   moveit_msgs::msg::Constraints path_constraints_tmp;
-  return computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory, path_constraints_tmp, avoid_collisions,
-                              error_code);
+  return computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory, moveit_msgs::msg::Constraints(),
+                              avoid_collisions, error_code);
 }
 
 double MoveGroupInterface::computeCartesianPath(const std::vector<geometry_msgs::msg::Pose>& waypoints, double eef_step,
@@ -1662,9 +1662,11 @@ double MoveGroupInterface::computeCartesianPath(const std::vector<geometry_msgs:
   }
   else
   {
-    moveit_msgs::msg::MoveItErrorCodes error_code_tmp;
+    moveit_msgs::msg::MoveItErrorCodes err_tmp;
+    err_tmp.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
+    moveit_msgs::msg::MoveItErrorCodes& err = error_code ? *error_code : err_tmp;
     return impl_->computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory, path_constraints,
-                                       avoid_collisions, error_code_tmp);
+                                       avoid_collisions, err);
   }
 }
 

@@ -43,6 +43,7 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <boost/bimap.hpp>
+#include <boost/bimap/unordered_multiset_of.hpp>
 #include <rclcpp/client.hpp>
 #include <rclcpp/duration.hpp>
 #include <rclcpp/logger.hpp>
@@ -133,7 +134,11 @@ class Ros2ControlManager : public moveit_controller_manager::MoveItControllerMan
   {
     // Skip if controller stamp is too new for new discovery, enforce update if force==true
     if (!force && ((node_->now() - controllers_stamp_) < CONTROLLER_INFORMATION_VALIDITY_AGE))
+    {
+      RCLCPP_WARN_STREAM(LOGGER, "Controller information from " << list_controllers_service_->get_service_name()
+                                                                << " is out of date, skipping discovery");
       return;
+    }
 
     controllers_stamp_ = node_->now();
 
@@ -398,7 +403,25 @@ public:
     std::scoped_lock<std::mutex> lock(controllers_mutex_);
     discover(true);
 
-    typedef boost::bimap<std::string, std::string> resources_bimap;
+    // Holds the list of controllers that are currently active and their resources
+    // Example:
+    // controller1:
+    //  - controller1_joint1
+    //  - controller1_joint2
+    //  ...
+    // controller2:
+    //  - controller2_joint1
+    //  - controller2_joint2
+    //  ...
+    // ...
+    // The left type have to be an unordered_multiset_of, because each controller can claim multiple resources
+    // {{ "controller1", "controller1_joint1" },
+    //  { "controller1", "controller1_joint2" },
+    //  ...,
+    //  { "controller2", "controller2_joint1" },
+    //  { "controller2", "controller2_joint2" },
+    //  ...}
+    typedef boost::bimap<boost::bimaps::unordered_multiset_of<std::string>, std::string> resources_bimap;
 
     resources_bimap claimed_resources;
 
@@ -419,7 +442,7 @@ public:
       if (c != managed_controllers_.end())
       {  // controller belongs to this manager
         request->deactivate_controllers.push_back(c->second.name);
-        claimed_resources.right.erase(c->second.name);  // remove resources
+        claimed_resources.left.erase(c->second.name);  // remove resources
       }
     }
 
@@ -436,8 +459,8 @@ public:
           resources_bimap::right_const_iterator res = claimed_resources.right.find(required_resource);
           if (res != claimed_resources.right.end())
           {  // resource is claimed
-            if (std::find(request->deactivate_controllers.begin(), request->deactivate_controllers.end(), res->second) ==
-                request->deactivate_controllers.end())
+            if (std::find(request->deactivate_controllers.begin(), request->deactivate_controllers.end(),
+                          res->second) == request->deactivate_controllers.end())
             {
               request->deactivate_controllers.push_back(res->second);  // add claiming controller to stop list
             }

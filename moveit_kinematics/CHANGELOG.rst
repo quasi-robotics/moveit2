@@ -2,6 +2,30 @@
 Changelog for package moveit_kinematics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.7.3 (2023-04-24)
+------------------
+
+2.7.2 (2023-04-18)
+------------------
+* Fix moveit_kinematics dependency on moveit_ros_planning (`#2109 <https://github.com/ros-planning/moveit2/issues/2109>`_)
+  This dependency is unconditionally used even if tests are disabled.
+* Update pre-commit (`#2094 <https://github.com/ros-planning/moveit2/issues/2094>`_)
+* Readability: kinematic_state -> robot_state (`#2078 <https://github.com/ros-planning/moveit2/issues/2078>`_)
+* Contributors: Scott K Logan, Sebastian Jahr, Shobuj Paul
+
+2.7.1 (2023-03-23)
+------------------
+* Fix member naming (`#1949 <https://github.com/ros-planning/moveit2/issues/1949>`_)
+  * Update clang-tidy rules for readability-identifier-naming
+  Co-authored-by: Sebastian Jahr <sebastian.jahr@picknik.ai>
+* Add ament export (`#1887 <https://github.com/ros-planning/moveit2/issues/1887>`_)
+  * Add ament export
+  Also sort `find_package` entries alphabetically.
+  * Minor cleanup
+  ---------
+  Co-authored-by: AndyZe <andyz@utexas.edu>
+* Contributors: Gaël Écorchard, Robert Haschke
+
 2.7.0 (2023-01-29)
 ------------------
 * Merge PR `#1712 <https://github.com/ros-planning/moveit2/issues/1712>`_: fix clang compiler warnings + stricter CI

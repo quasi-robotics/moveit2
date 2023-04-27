@@ -2,6 +2,38 @@
 Changelog for package moveit_ros_planning_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.7.3 (2023-04-24)
+------------------
+* Replace Variable PROJECT_NAME in CMakeLists.txt with the actual name (`#2020 <https://github.com/ros-planning/moveit2/issues/2020>`_)
+* Contributors: Shobuj Paul
+
+2.7.2 (2023-04-18)
+------------------
+* Update pre-commit (`#2094 <https://github.com/ros-planning/moveit2/issues/2094>`_)
+* Merge pull request `#1900 <https://github.com/ros-planning/moveit2/issues/1900>`_ from Abishalini/pr-sync-1245f15
+  Sync with MoveIt1
+* Readd comment and assign error code
+* Merge https://github.com/ros-planning/moveit/commit/1245f151393fe09023efec3e1faead2d26737227
+* Update description of moveit_ros_planning_interface (`#2045 <https://github.com/ros-planning/moveit2/issues/2045>`_)
+  * Update description of moveit_ros_planning_interface
+  * Update moveit_ros/planning_interface/package.xml
+  Co-authored-by: Henning Kayser <henningkayser@picknik.ai>
+  ---------
+  Co-authored-by: Henning Kayser <henningkayser@picknik.ai>
+* Merge PR `#3197 <https://github.com/ros-planning/moveit2/issues/3197>`_: Improve computeCartesianPath()
+* Simplify MGI::computeCartesianPath()
+* Contributors: Abishalini, Abishalini Sivaraman, Robert Haschke, Sebastian Jahr, Shobuj Paul
+
+2.7.1 (2023-03-23)
+------------------
+* Fix member naming (`#1949 <https://github.com/ros-planning/moveit2/issues/1949>`_)
+  * Update clang-tidy rules for readability-identifier-naming
+  Co-authored-by: Sebastian Jahr <sebastian.jahr@picknik.ai>
+* remove underscore from public member in MotionPlanResponse (`#1939 <https://github.com/ros-planning/moveit2/issues/1939>`_)
+  * remove underscore from private members
+  * fix more uses of the suffix notation
+* Contributors: AlexWebb, Robert Haschke
+
 2.7.0 (2023-01-29)
 ------------------
 * Merge https://github.com/ros-planning/moveit/commit/9225971216885490e933ece25390c63ca14f8a58
