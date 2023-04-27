@@ -109,6 +109,7 @@ add_subdirectory(version)
 install(
   TARGETS
     collision_detector_bullet_plugin
+    collision_detector_fcl_plugin
     moveit_butterworth_filter
     moveit_butterworth_parameters
     moveit_collision_detection

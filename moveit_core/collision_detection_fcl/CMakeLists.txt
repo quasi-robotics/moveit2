@@ -39,12 +39,6 @@ target_link_libraries(collision_detector_fcl_plugin
 
 install(DIRECTORY include/ DESTINATION include/moveit_core)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/moveit_collision_detection_fcl_export.h DESTINATION include/moveit_core)
-install(TARGETS moveit_collision_detection_fcl collision_detector_fcl_plugin EXPORT export_moveit_collision_detection_fcl
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin
-        )
-ament_export_targets(export_moveit_collision_detection_fcl HAS_LIBRARY_TARGET)
 
 if(BUILD_TESTING)
   if(WIN32)
