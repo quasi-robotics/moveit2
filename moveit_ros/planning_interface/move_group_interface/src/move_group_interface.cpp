@@ -66,6 +66,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/version.h>
 
+#include <boost/thread/thread.hpp>
+
 namespace moveit
 {
 namespace planning_interface
@@ -134,7 +136,7 @@ public:
     callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive,
                                                    false /* don't spin with node executor */);
     callback_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
-    callback_thread_ = std::thread([this]() { callback_executor_.spin(); });
+    callback_thread_ = boost::thread([this]() { callback_executor_.spin(); });
 
     joint_model_group_ = getRobotModel()->getJointModelGroup(opt.group_name);
 
@@ -197,13 +199,22 @@ public:
 
   ~MoveGroupInterfaceImpl()
   {
-    if (constraints_init_thread_)
+    if (constraints_init_thread_) {
+      RCLCPP_DEBUG(LOGGER, ">>> waiting for constraints_init_thread_");
       constraints_init_thread_->join();
+    }
 
+    RCLCPP_DEBUG(LOGGER, ">>> canceling callback_executor_");
     callback_executor_.cancel();
 
-    if (callback_thread_.joinable())
-      callback_thread_.join();
+    if (callback_thread_.joinable()){
+      RCLCPP_DEBUG(LOGGER, ">>> waiting for callback_thread_");
+      while(!callback_thread_.try_join_for(boost::chrono::milliseconds(100))) {
+        RCLCPP_DEBUG(LOGGER, ">>> wait timed out, retrying cancelation");
+        callback_executor_.cancel();
+      }
+    }
+    RCLCPP_DEBUG(LOGGER, ">>> all done");
   }
 
   const std::shared_ptr<tf2_ros::Buffer>& getTF() const
@@ -1379,7 +1390,7 @@ private:
   rclcpp::Node::SharedPtr node_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_executor_;
-  std::thread callback_thread_;
+  boost::thread callback_thread_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   moveit::core::RobotModelConstPtr robot_model_;
   planning_scene_monitor::CurrentStateMonitorPtr current_state_monitor_;
