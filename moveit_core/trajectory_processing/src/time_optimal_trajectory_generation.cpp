@@ -1111,11 +1111,13 @@ bool TimeOptimalTrajectoryGeneration::doTimeParameterizationCalculations(robot_t
     return false;
   }
 
+/*
   if (hasMixedJointTypes(group))
   {
     RCLCPP_WARN(LOGGER, "There is a combination of revolute and prismatic joints in the robot model. TOTG's "
                         "`path_tolerance` will not function correctly.");
   }
+*/
 
   const unsigned num_points = trajectory.getWayPointCount();
   const std::vector<int>& idx = group->getVariableIndexList();
