@@ -40,8 +40,15 @@
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/clock.hpp>
+#include <moveit/utils/logger.hpp>
 
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.ros.perception.shape_mask");
+namespace
+{
+rclcpp::Logger getLogger()
+{
+  return moveit::getLogger("shape_mask");
+}
+}  // namespace
 
 point_containment_filter::ShapeMask::ShapeMask(const TransformCallback& transform_callback)
   : transform_callback_(transform_callback), next_handle_(1), min_handle_(1)
@@ -82,7 +89,9 @@ point_containment_filter::ShapeHandle point_containment_filter::ShapeMask::addSh
     ss.handle = next_handle_;
     std::pair<std::set<SeeShape, SortBodies>::iterator, bool> insert_op = bodies_.insert(ss);
     if (!insert_op.second)
-      RCLCPP_ERROR(LOGGER, "Internal error in management of bodies in ShapeMask. This is a serious error.");
+    {
+      RCLCPP_ERROR(getLogger(), "Internal error in management of bodies in ShapeMask. This is a serious error.");
+    }
     used_handles_[next_handle_] = insert_op.first;
   }
   else
@@ -115,7 +124,7 @@ void point_containment_filter::ShapeMask::removeShape(ShapeHandle handle)
     min_handle_ = handle;
   }
   else
-    RCLCPP_ERROR(LOGGER, "Unable to remove shape handle %u", handle);
+    RCLCPP_ERROR(getLogger(), "Unable to remove shape handle %u", handle);
 }
 
 void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg::PointCloud2& data_in,
@@ -137,18 +146,19 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
     Eigen::Isometry3d tmp;
     bspheres_.resize(bodies_.size());
     std::size_t j = 0;
-    RCLCPP_DEBUG(LOGGER, "before transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
+    RCLCPP_DEBUG(getLogger(), "before transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
     for (std::set<SeeShape>::const_iterator it = bodies_.begin(); it != bodies_.end(); ++it)
     {
       if (!transform_callback_(it->handle, tmp))
       {
         if (!it->body)
         {
-          RCLCPP_ERROR_STREAM(LOGGER, "Missing transform for shape with handle " << it->handle << " without a body");
+          RCLCPP_ERROR_STREAM(getLogger(),
+                              "Missing transform for shape with handle " << it->handle << " without a body");
         }
         else
         {
-          RCLCPP_ERROR_STREAM(LOGGER,
+          RCLCPP_ERROR_STREAM(getLogger(),
                               "Missing transform for shape " << it->body->getType() << " with handle " << it->handle);
         }
       }
@@ -158,14 +168,14 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
         it->body->computeBoundingSphere(bspheres_[j++]);
       }
     }
-    RCLCPP_DEBUG(LOGGER, "after transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
+    RCLCPP_DEBUG(getLogger(), "after transforms %f", (rclcpp::Clock().now() - start).seconds() * 1000.0);
 
     // compute a sphere that bounds the entire robot
     bodies::BoundingSphere bound;
     bodies::mergeBoundingSpheres(bspheres_, bound);
     const double radius_squared = bound.radius * bound.radius;
 
-    RCLCPP_DEBUG(LOGGER, "after merging spheres %f, bound center: %f, %f, %f, radius: %f", (rclcpp::Clock().now() - start).seconds() * 1000.0,
+    RCLCPP_DEBUG(getLogger(), "after merging spheres %f, bound center: %f, %f, %f, radius: %f", (rclcpp::Clock().now() - start).seconds() * 1000.0,
                   bound.center.x(), bound.center.y(), bound.center.z(), bound.radius);
     // we now decide which points we keep
     sensor_msgs::PointCloud2ConstIterator<float> iter_x(data_in, "x");
@@ -196,7 +206,7 @@ void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg
       }
       mask[i] = out;
     }
-    RCLCPP_DEBUG(LOGGER, "end %f, ni: %d", (rclcpp::Clock().now() - start).seconds() * 1000.0, ni);
+    RCLCPP_DEBUG(getLogger(), "end %f, ni: %d", (rclcpp::Clock().now() - start).seconds() * 1000.0, ni);
   }
 }
 

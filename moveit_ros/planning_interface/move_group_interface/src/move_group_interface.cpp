@@ -57,6 +57,7 @@
 #include <moveit_msgs/srv/get_planner_params.hpp>
 #include <moveit_msgs/srv/set_planner_params.hpp>
 #include <moveit/utils/rclcpp_utils.h>
+#include <moveit/utils/logger.hpp>
 
 #include <std_msgs/msg/string.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -76,7 +77,6 @@ const std::string MoveGroupInterface::ROBOT_DESCRIPTION =
     "robot_description";  // name of the robot description (a param name, so it can be changed externally)
 
 const std::string GRASP_PLANNING_SERVICE_NAME = "plan_grasps";  // name of the service that can be used to plan grasps
-const rclcpp::Logger LOGGER = rclcpp::get_logger("move_group_interface");
 
 namespace
 {
@@ -92,12 +92,12 @@ enum ActiveTargetType
 // Rolling has deprecated the version of the create_client method that takes
 // rmw_qos_profile_services_default for the QoS argument
 #if RCLCPP_VERSION_GTE(17, 0, 0)  // Rolling
-auto qos_default()
+auto qosDefault()
 {
   return rclcpp::SystemDefaultsQoS();
 }
 #else  // Humble
-auto qos_default()
+auto qosDefault()
 {
   return rmw_qos_profile_services_default;
 }
@@ -112,7 +112,7 @@ class MoveGroupInterface::MoveGroupInterfaceImpl
 public:
   MoveGroupInterfaceImpl(const rclcpp::Node::SharedPtr& node, const Options& opt,
                          const std::shared_ptr<tf2_ros::Buffer>& tf_buffer, const rclcpp::Duration& wait_for_servers)
-    : opt_(opt), node_(node), tf_buffer_(tf_buffer)
+    : opt_(opt), node_(node), logger_(moveit::getLogger("move_group_interface")), tf_buffer_(tf_buffer)
   {
     robot_model_ = opt.robot_model ? opt.robot_model : getSharedRobotModel(node_, opt.robot_description);
 
@@ -120,14 +120,14 @@ public:
     {
       std::string error = "Unable to construct robot model. Please make sure all needed information is on the "
                           "parameter server.";
-      RCLCPP_FATAL_STREAM(LOGGER, error);
+      RCLCPP_FATAL_STREAM(logger_, error);
       throw std::runtime_error(error);
     }
 
     if (!getRobotModel()->hasJointModelGroup(opt.group_name))
     {
       std::string error = "Group '" + opt.group_name + "' was not found.";
-      RCLCPP_FATAL_STREAM(LOGGER, error);
+      RCLCPP_FATAL_STREAM(logger_, error);
       throw std::runtime_error(error);
     }
 
@@ -182,39 +182,39 @@ public:
     execute_action_client_->wait_for_action_server(wait_for_servers.to_chrono<std::chrono::duration<double>>());
 
     query_service_ = node_->create_client<moveit_msgs::srv::QueryPlannerInterfaces>(
-        rclcpp::names::append(opt_.move_group_namespace, move_group::QUERY_PLANNERS_SERVICE_NAME), qos_default(),
+        rclcpp::names::append(opt_.move_group_namespace, move_group::QUERY_PLANNERS_SERVICE_NAME), qosDefault(),
         callback_group_);
     get_params_service_ = node_->create_client<moveit_msgs::srv::GetPlannerParams>(
-        rclcpp::names::append(opt_.move_group_namespace, move_group::GET_PLANNER_PARAMS_SERVICE_NAME), qos_default(),
+        rclcpp::names::append(opt_.move_group_namespace, move_group::GET_PLANNER_PARAMS_SERVICE_NAME), qosDefault(),
         callback_group_);
     set_params_service_ = node_->create_client<moveit_msgs::srv::SetPlannerParams>(
-        rclcpp::names::append(opt_.move_group_namespace, move_group::SET_PLANNER_PARAMS_SERVICE_NAME), qos_default(),
+        rclcpp::names::append(opt_.move_group_namespace, move_group::SET_PLANNER_PARAMS_SERVICE_NAME), qosDefault(),
         callback_group_);
     cartesian_path_service_ = node_->create_client<moveit_msgs::srv::GetCartesianPath>(
-        rclcpp::names::append(opt_.move_group_namespace, move_group::CARTESIAN_PATH_SERVICE_NAME), qos_default(),
+        rclcpp::names::append(opt_.move_group_namespace, move_group::CARTESIAN_PATH_SERVICE_NAME), qosDefault(),
         callback_group_);
 
-    RCLCPP_INFO_STREAM(LOGGER, "Ready to take commands for planning group " << opt.group_name << '.');
+    RCLCPP_INFO_STREAM(logger_, "Ready to take commands for planning group " << opt.group_name << '.');
   }
 
   ~MoveGroupInterfaceImpl()
   {
     if (constraints_init_thread_) {
-      RCLCPP_DEBUG(LOGGER, ">>> waiting for constraints_init_thread_");
+      RCLCPP_DEBUG(logger_, ">>> waiting for constraints_init_thread_");
       constraints_init_thread_->join();
     }
 
-    RCLCPP_DEBUG(LOGGER, ">>> canceling callback_executor_");
+    RCLCPP_DEBUG(logger_, ">>> canceling callback_executor_");
     callback_executor_.cancel();
 
     if (callback_thread_.joinable()){
-      RCLCPP_DEBUG(LOGGER, ">>> waiting for callback_thread_");
+      RCLCPP_DEBUG(logger_, ">>> waiting for callback_thread_");
       while(!callback_thread_.try_join_for(boost::chrono::milliseconds(100))) {
-        RCLCPP_DEBUG(LOGGER, ">>> wait timed out, retrying cancelation");
+        RCLCPP_DEBUG(logger_, ">>> wait timed out, retrying cancelation");
         callback_executor_.cancel();
       }
     }
-    RCLCPP_DEBUG(LOGGER, ">>> all done");
+    RCLCPP_DEBUG(logger_, ">>> all done");
   }
 
   const std::shared_ptr<tf2_ros::Buffer>& getTF() const
@@ -380,8 +380,7 @@ public:
   {
     if (target_value > 1.0)
     {
-      RCLCPP_WARN(rclcpp::get_logger("move_group_interface"), "Limiting max_%s (%.2f) to 1.0.", factor_name,
-                  target_value);
+      RCLCPP_WARN(logger_, "Limiting max_%s (%.2f) to 1.0.", factor_name, target_value);
       variable = 1.0;
     }
     else if (target_value <= 0.0)
@@ -390,8 +389,7 @@ public:
                                       fallback_value);
       if (target_value < 0.0)
       {
-        RCLCPP_WARN(rclcpp::get_logger("move_group_interface"), "max_%s < 0.0! Setting to default: %.2f.", factor_name,
-                    variable);
+        RCLCPP_WARN(logger_, "max_%s < 0.0! Setting to default: %.2f.", factor_name, variable);
       }
     }
     else
@@ -478,7 +476,7 @@ public:
         }
         else
         {
-          RCLCPP_ERROR(LOGGER, "Unable to transform from frame '%s' to frame '%s'", frame.c_str(),
+          RCLCPP_ERROR(logger_, "Unable to transform from frame '%s' to frame '%s'", frame.c_str(),
                        getRobotModel()->getModelFrame().c_str());
           return false;
         }
@@ -529,7 +527,7 @@ public:
     const std::string& eef = end_effector_link.empty() ? end_effector_link_ : end_effector_link;
     if (eef.empty())
     {
-      RCLCPP_ERROR(LOGGER, "No end-effector to set the pose for");
+      RCLCPP_ERROR(logger_, "No end-effector to set the pose for");
       return false;
     }
     else
@@ -563,7 +561,7 @@ public:
 
     // or return an error
     static const geometry_msgs::msg::PoseStamped UNKNOWN;
-    RCLCPP_ERROR(LOGGER, "Pose for end-effector '%s' not known.", eef.c_str());
+    RCLCPP_ERROR(logger_, "Pose for end-effector '%s' not known.", eef.c_str());
     return UNKNOWN;
   }
 
@@ -580,7 +578,7 @@ public:
 
     // or return an error
     static const std::vector<geometry_msgs::msg::PoseStamped> EMPTY;
-    RCLCPP_ERROR(LOGGER, "Poses for end-effector '%s' are not known.", eef.c_str());
+    RCLCPP_ERROR(logger_, "Poses for end-effector '%s' are not known.", eef.c_str());
     return EMPTY;
   }
 
@@ -613,7 +611,7 @@ public:
   {
     if (!current_state_monitor_)
     {
-      RCLCPP_ERROR(LOGGER, "Unable to monitor current robot state");
+      RCLCPP_ERROR(logger_, "Unable to monitor current robot state");
       return false;
     }
 
@@ -629,7 +627,7 @@ public:
   {
     if (!current_state_monitor_)
     {
-      RCLCPP_ERROR(LOGGER, "Unable to get current robot state");
+      RCLCPP_ERROR(logger_, "Unable to get current robot state");
       return false;
     }
 
@@ -639,7 +637,7 @@ public:
 
     if (!current_state_monitor_->waitForCurrentState(node_->now(), wait_seconds))
     {
-      RCLCPP_ERROR(LOGGER, "Failed to fetch current robot state");
+      RCLCPP_ERROR(logger_, "Failed to fetch current robot state");
       return false;
     }
 
@@ -651,10 +649,10 @@ public:
   {
     if (!move_action_client_ || !move_action_client_->action_server_is_ready())
     {
-      RCLCPP_INFO_STREAM(LOGGER, "MoveGroup action client/server not ready");
+      RCLCPP_INFO_STREAM(logger_, "MoveGroup action client/server not ready");
       return moveit::core::MoveItErrorCode::FAILURE;
     }
-    RCLCPP_INFO_STREAM(LOGGER, "MoveGroup action client/server ready");
+    RCLCPP_INFO_STREAM(logger_, "MoveGroup action client/server ready");
 
     moveit_msgs::action::MoveGroup::Goal goal;
     constructGoal(goal);
@@ -674,10 +672,10 @@ public:
           if (!goal_handle)
           {
             done = true;
-            RCLCPP_INFO(LOGGER, "Planning request rejected");
+            RCLCPP_INFO(logger_, "Planning request rejected");
           }
           else
-            RCLCPP_INFO(LOGGER, "Planning request accepted");
+            RCLCPP_INFO(logger_, "Planning request accepted");
         };
     send_goal_opts.result_callback =
         [&](const rclcpp_action::ClientGoalHandle<moveit_msgs::action::MoveGroup>::WrappedResult& result) {
@@ -688,16 +686,16 @@ public:
           switch (result.code)
           {
             case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(LOGGER, "Planning request complete!");
+              RCLCPP_INFO(logger_, "Planning request complete!");
               break;
             case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_INFO(LOGGER, "Planning request aborted");
+              RCLCPP_INFO(logger_, "Planning request aborted");
               return;
             case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_INFO(LOGGER, "Planning request canceled");
+              RCLCPP_INFO(logger_, "Planning request canceled");
               return;
             default:
-              RCLCPP_INFO(LOGGER, "Planning request unknown result code");
+              RCLCPP_INFO(logger_, "Planning request unknown result code");
               return;
           }
         };
@@ -712,14 +710,14 @@ public:
 
     if (code != rclcpp_action::ResultCode::SUCCEEDED)
     {
-      RCLCPP_ERROR_STREAM(LOGGER, "MoveGroupInterface::plan() failed or timeout reached");
+      RCLCPP_ERROR_STREAM(logger_, "MoveGroupInterface::plan() failed or timeout reached");
       return res->error_code;
     }
 
     plan.trajectory = res->planned_trajectory;
     plan.start_state = res->trajectory_start;
     plan.planning_time = res->planning_time;
-    RCLCPP_INFO(LOGGER, "time taken to generate plan: %g seconds", plan.planning_time);
+    RCLCPP_INFO(logger_, "time taken to generate plan: %g seconds", plan.planning_time);
 
     return res->error_code;
   }
@@ -728,7 +726,7 @@ public:
   {
     if (!move_action_client_ || !move_action_client_->action_server_is_ready())
     {
-      RCLCPP_INFO_STREAM(LOGGER, "MoveGroup action client/server not ready");
+      RCLCPP_INFO_STREAM(logger_, "MoveGroup action client/server not ready");
       return moveit::core::MoveItErrorCode::FAILURE;
     }
 
@@ -751,10 +749,10 @@ public:
           if (!goal_handle)
           {
             done = true;
-            RCLCPP_INFO(LOGGER, "Plan and Execute request rejected");
+            RCLCPP_INFO(logger_, "Plan and Execute request rejected");
           }
           else
-            RCLCPP_INFO(LOGGER, "Plan and Execute request accepted");
+            RCLCPP_INFO(logger_, "Plan and Execute request accepted");
         };
     send_goal_opts.result_callback =
         [&](const rclcpp_action::ClientGoalHandle<moveit_msgs::action::MoveGroup>::WrappedResult& result) {
@@ -765,16 +763,16 @@ public:
           switch (result.code)
           {
             case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(LOGGER, "Plan and Execute request complete!");
+              RCLCPP_INFO(logger_, "Plan and Execute request complete!");
               break;
             case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_INFO(LOGGER, "Plan and Execute request aborted");
+              RCLCPP_INFO(logger_, "Plan and Execute request aborted");
               return;
             case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_INFO(LOGGER, "Plan and Execute request canceled");
+              RCLCPP_INFO(logger_, "Plan and Execute request canceled");
               return;
             default:
-              RCLCPP_INFO(LOGGER, "Plan and Execute request unknown result code");
+              RCLCPP_INFO(logger_, "Plan and Execute request unknown result code");
               return;
           }
         };
@@ -790,16 +788,17 @@ public:
 
     if (code != rclcpp_action::ResultCode::SUCCEEDED)
     {
-      RCLCPP_ERROR_STREAM(LOGGER, "MoveGroupInterface::move() failed or timeout reached");
+      RCLCPP_ERROR_STREAM(logger_, "MoveGroupInterface::move() failed or timeout reached");
     }
     return res->error_code;
   }
 
-  moveit::core::MoveItErrorCode execute(const moveit_msgs::msg::RobotTrajectory& trajectory, bool wait)
+  moveit::core::MoveItErrorCode execute(const moveit_msgs::msg::RobotTrajectory& trajectory, bool wait,
+                                        const std::vector<std::string>& controllers = std::vector<std::string>())
   {
     if (!execute_action_client_ || !execute_action_client_->action_server_is_ready())
     {
-      RCLCPP_INFO_STREAM(LOGGER, "execute_action_client_ client/server not ready");
+      RCLCPP_INFO_STREAM(logger_, "execute_action_client_ client/server not ready");
       return moveit::core::MoveItErrorCode::FAILURE;
     }
 
@@ -813,10 +812,10 @@ public:
           if (!goal_handle)
           {
             done = true;
-            RCLCPP_INFO(LOGGER, "Execute request rejected");
+            RCLCPP_INFO(logger_, "Execute request rejected");
           }
           else
-            RCLCPP_INFO(LOGGER, "Execute request accepted");
+            RCLCPP_INFO(logger_, "Execute request accepted");
         };
     send_goal_opts.result_callback =
         [&](const rclcpp_action::ClientGoalHandle<moveit_msgs::action::ExecuteTrajectory>::WrappedResult& result) {
@@ -827,22 +826,23 @@ public:
           switch (result.code)
           {
             case rclcpp_action::ResultCode::SUCCEEDED:
-              RCLCPP_INFO(LOGGER, "Execute request success!");
+              RCLCPP_INFO(logger_, "Execute request success!");
               break;
             case rclcpp_action::ResultCode::ABORTED:
-              RCLCPP_INFO(LOGGER, "Execute request aborted");
+              RCLCPP_INFO(logger_, "Execute request aborted");
               return;
             case rclcpp_action::ResultCode::CANCELED:
-              RCLCPP_INFO(LOGGER, "Execute request canceled");
+              RCLCPP_INFO(logger_, "Execute request canceled");
               return;
             default:
-              RCLCPP_INFO(LOGGER, "Execute request unknown result code");
+              RCLCPP_INFO(logger_, "Execute request unknown result code");
               return;
           }
         };
 
     moveit_msgs::action::ExecuteTrajectory::Goal goal;
     goal.trajectory = trajectory;
+    goal.controller_names = controllers;
 
     auto goal_handle_future = execute_action_client_->async_send_goal(goal, send_goal_opts);
     if (!wait)
@@ -856,7 +856,7 @@ public:
 
     if (code != rclcpp_action::ResultCode::SUCCEEDED)
     {
-      RCLCPP_ERROR_STREAM(LOGGER, "MoveGroupInterface::execute() failed or timeout reached");
+      RCLCPP_ERROR_STREAM(logger_, "MoveGroupInterface::execute() failed or timeout reached");
     }
     return res->error_code;
   }
@@ -931,7 +931,7 @@ public:
     }
     if (l.empty())
     {
-      RCLCPP_ERROR(LOGGER, "No known link to attach object '%s' to", object.c_str());
+      RCLCPP_ERROR(logger_, "No known link to attach object '%s' to", object.c_str());
       return false;
     }
     moveit_msgs::msg::AttachedCollisionObject aco;
@@ -1075,7 +1075,7 @@ public:
       }
     }
     else
-      RCLCPP_ERROR(LOGGER, "Unable to construct MotionPlanRequest representation");
+      RCLCPP_ERROR(logger_, "Unable to construct MotionPlanRequest representation");
 
     if (path_constraints_)
       request.path_constraints = *path_constraints_;
@@ -1261,13 +1261,14 @@ private:
     }
     catch (std::exception& ex)
     {
-      RCLCPP_ERROR(LOGGER, "%s", ex.what());
+      RCLCPP_ERROR(logger_, "%s", ex.what());
     }
     initializing_constraints_ = false;
   }
 
   Options opt_;
   rclcpp::Node::SharedPtr node_;
+  rclcpp::Logger logger_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_executor_;
   boost::thread callback_thread_;
@@ -1330,6 +1331,7 @@ private:
 MoveGroupInterface::MoveGroupInterface(const rclcpp::Node::SharedPtr& node, const std::string& group_name,
                                        const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
                                        const rclcpp::Duration& wait_for_servers)
+  : logger_(moveit::getLogger("move_group_interface"))
 {
   if (!rclcpp::ok())
     throw std::runtime_error("ROS does not seem to be running");
@@ -1340,6 +1342,7 @@ MoveGroupInterface::MoveGroupInterface(const rclcpp::Node::SharedPtr& node, cons
 MoveGroupInterface::MoveGroupInterface(const rclcpp::Node::SharedPtr& node, const Options& opt,
                                        const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
                                        const rclcpp::Duration& wait_for_servers)
+  : logger_(moveit::getLogger("move_group_interface"))
 {
   impl_ = new MoveGroupInterfaceImpl(node, opt, tf_buffer ? tf_buffer : getSharedTF(), wait_for_servers);
 }
@@ -1350,7 +1353,9 @@ MoveGroupInterface::~MoveGroupInterface()
 }
 
 MoveGroupInterface::MoveGroupInterface(MoveGroupInterface&& other) noexcept
-  : remembered_joint_values_(std::move(other.remembered_joint_values_)), impl_(other.impl_)
+  : remembered_joint_values_(std::move(other.remembered_joint_values_))
+  , impl_(other.impl_)
+  , logger_(std::move(other.logger_))
 {
   other.impl_ = nullptr;
 }
@@ -1361,6 +1366,7 @@ MoveGroupInterface& MoveGroupInterface::operator=(MoveGroupInterface&& other) no
   {
     delete impl_;
     impl_ = other.impl_;
+    logger_ = other.logger_;
     remembered_joint_values_ = std::move(other.remembered_joint_values_);
     other.impl_ = nullptr;
   }
@@ -1467,24 +1473,27 @@ moveit::core::MoveItErrorCode MoveGroupInterface::move()
   return impl_->move(true);
 }
 
-moveit::core::MoveItErrorCode MoveGroupInterface::asyncExecute(const Plan& plan)
+moveit::core::MoveItErrorCode MoveGroupInterface::asyncExecute(const Plan& plan,
+                                                               const std::vector<std::string>& controllers)
 {
-  return impl_->execute(plan.trajectory, false);
+  return impl_->execute(plan.trajectory, false, controllers);
 }
 
-moveit::core::MoveItErrorCode MoveGroupInterface::asyncExecute(const moveit_msgs::msg::RobotTrajectory& trajectory)
+moveit::core::MoveItErrorCode MoveGroupInterface::asyncExecute(const moveit_msgs::msg::RobotTrajectory& trajectory,
+                                                               const std::vector<std::string>& controllers)
 {
-  return impl_->execute(trajectory, false);
+  return impl_->execute(trajectory, false, controllers);
 }
 
-moveit::core::MoveItErrorCode MoveGroupInterface::execute(const Plan& plan)
+moveit::core::MoveItErrorCode MoveGroupInterface::execute(const Plan& plan, const std::vector<std::string>& controllers)
 {
-  return impl_->execute(plan.trajectory, true);
+  return impl_->execute(plan.trajectory, true, controllers);
 }
 
-moveit::core::MoveItErrorCode MoveGroupInterface::execute(const moveit_msgs::msg::RobotTrajectory& trajectory)
+moveit::core::MoveItErrorCode MoveGroupInterface::execute(const moveit_msgs::msg::RobotTrajectory& trajectory,
+                                                          const std::vector<std::string>& controllers)
 {
-  return impl_->execute(trajectory, true);
+  return impl_->execute(trajectory, true, controllers);
 }
 
 moveit::core::MoveItErrorCode MoveGroupInterface::plan(Plan& plan)
@@ -1625,7 +1634,7 @@ std::map<std::string, double> MoveGroupInterface::getNamedTargetValues(const std
   {
     if (!impl_->getJointModelGroup()->getVariableDefaultPositions(name, positions))
     {
-      RCLCPP_ERROR(LOGGER, "The requested named target '%s' does not exist, returning empty positions.", name.c_str());
+      RCLCPP_ERROR(logger_, "The requested named target '%s' does not exist, returning empty positions.", name.c_str());
     }
   }
   return positions;
@@ -1645,7 +1654,7 @@ bool MoveGroupInterface::setNamedTarget(const std::string& name)
       impl_->setTargetType(JOINT);
       return true;
     }
-    RCLCPP_ERROR(LOGGER, "The requested named target '%s' does not exist", name.c_str());
+    RCLCPP_ERROR(logger_, "The requested named target '%s' does not exist", name.c_str());
     return false;
   }
 }
@@ -1657,12 +1666,12 @@ void MoveGroupInterface::getJointValueTarget(std::vector<double>& group_variable
 
 bool MoveGroupInterface::setJointValueTarget(const std::vector<double>& joint_values)
 {
-  auto const n_group_joints = impl_->getJointModelGroup()->getVariableCount();
+  const auto n_group_joints = impl_->getJointModelGroup()->getVariableCount();
   if (joint_values.size() != n_group_joints)
   {
-    RCLCPP_DEBUG_STREAM(LOGGER, "Provided joint value list has length " << joint_values.size() << " but group "
-                                                                        << impl_->getJointModelGroup()->getName()
-                                                                        << " has " << n_group_joints << " joints");
+    RCLCPP_DEBUG_STREAM(logger_, "Provided joint value list has length " << joint_values.size() << " but group "
+                                                                         << impl_->getJointModelGroup()->getName()
+                                                                         << " has " << n_group_joints << " joints");
     return false;
   }
   impl_->setTargetType(JOINT);
@@ -1677,8 +1686,8 @@ bool MoveGroupInterface::setJointValueTarget(const std::map<std::string, double>
   {
     if (std::find(allowed.begin(), allowed.end(), pair.first) == allowed.end())
     {
-      RCLCPP_ERROR_STREAM(LOGGER, "joint variable " << pair.first << " is not part of group "
-                                                    << impl_->getJointModelGroup()->getName());
+      RCLCPP_ERROR_STREAM(logger_, "joint variable " << pair.first << " is not part of group "
+                                                     << impl_->getJointModelGroup()->getName());
       return false;
     }
   }
@@ -1693,7 +1702,7 @@ bool MoveGroupInterface::setJointValueTarget(const std::vector<std::string>& var
 {
   if (variable_names.size() != variable_values.size())
   {
-    RCLCPP_ERROR_STREAM(LOGGER, "sizes of name and position arrays do not match");
+    RCLCPP_ERROR_STREAM(logger_, "sizes of name and position arrays do not match");
     return false;
   }
   const auto& allowed = impl_->getJointModelGroup()->getVariableNames();
@@ -1701,8 +1710,8 @@ bool MoveGroupInterface::setJointValueTarget(const std::vector<std::string>& var
   {
     if (std::find(allowed.begin(), allowed.end(), variable_name) == allowed.end())
     {
-      RCLCPP_ERROR_STREAM(LOGGER, "joint variable " << variable_name << " is not part of group "
-                                                    << impl_->getJointModelGroup()->getName());
+      RCLCPP_ERROR_STREAM(logger_, "joint variable " << variable_name << " is not part of group "
+                                                     << impl_->getJointModelGroup()->getName());
       return false;
     }
   }
@@ -1735,7 +1744,7 @@ bool MoveGroupInterface::setJointValueTarget(const std::string& joint_name, cons
     return impl_->getTargetRobotState().satisfiesBounds(jm, impl_->getGoalJointTolerance());
   }
 
-  RCLCPP_ERROR_STREAM(LOGGER,
+  RCLCPP_ERROR_STREAM(logger_,
                       "joint " << joint_name << " is not part of group " << impl_->getJointModelGroup()->getName());
   return false;
 }
@@ -1780,11 +1789,6 @@ bool MoveGroupInterface::setApproximateJointValueTarget(const Eigen::Isometry3d&
 {
   geometry_msgs::msg::Pose msg = tf2::toMsg(eef_pose);
   return setApproximateJointValueTarget(msg, end_effector_link);
-}
-
-const moveit::core::RobotState& MoveGroupInterface::getJointValueTarget() const
-{
-  return impl_->getTargetRobotState();
 }
 
 const moveit::core::RobotState& MoveGroupInterface::getTargetRobotState() const
@@ -1888,7 +1892,7 @@ bool MoveGroupInterface::setPoseTargets(const std::vector<geometry_msgs::msg::Po
 {
   if (target.empty())
   {
-    RCLCPP_ERROR(LOGGER, "No pose specified as goal target");
+    RCLCPP_ERROR(logger_, "No pose specified as goal target");
     return false;
   }
   else
@@ -2078,7 +2082,7 @@ geometry_msgs::msg::PoseStamped MoveGroupInterface::getRandomPose(const std::str
   pose.setIdentity();
   if (eef.empty())
   {
-    RCLCPP_ERROR(LOGGER, "No end-effector specified");
+    RCLCPP_ERROR(logger_, "No end-effector specified");
   }
   else
   {
@@ -2105,7 +2109,7 @@ geometry_msgs::msg::PoseStamped MoveGroupInterface::getCurrentPose(const std::st
   pose.setIdentity();
   if (eef.empty())
   {
-    RCLCPP_ERROR(LOGGER, "No end-effector specified");
+    RCLCPP_ERROR(logger_, "No end-effector specified");
   }
   else
   {
@@ -2130,7 +2134,7 @@ std::vector<double> MoveGroupInterface::getCurrentRPY(const std::string& end_eff
   const std::string& eef = end_effector_link.empty() ? getEndEffectorLink() : end_effector_link;
   if (eef.empty())
   {
-    RCLCPP_ERROR(LOGGER, "No end-effector specified");
+    RCLCPP_ERROR(logger_, "No end-effector specified");
   }
   else
   {
@@ -2188,18 +2192,18 @@ void MoveGroupInterface::forgetJointValues(const std::string& name)
 void MoveGroupInterface::allowLooking(bool flag)
 {
   impl_->can_look_ = flag;
-  RCLCPP_DEBUG(LOGGER, "Looking around: %s", flag ? "yes" : "no");
+  RCLCPP_DEBUG(logger_, "Looking around: %s", flag ? "yes" : "no");
 }
 
 void MoveGroupInterface::setLookAroundAttempts(int32_t attempts)
 {
   if (attempts < 0)
   {
-    RCLCPP_ERROR(LOGGER, "Tried to set negative number of look-around attempts");
+    RCLCPP_ERROR(logger_, "Tried to set negative number of look-around attempts");
   }
   else
   {
-    RCLCPP_DEBUG_STREAM(LOGGER, "Look around attempts: " << attempts);
+    RCLCPP_DEBUG_STREAM(logger_, "Look around attempts: " << attempts);
     impl_->look_around_attempts_ = attempts;
   }
 }
@@ -2207,18 +2211,18 @@ void MoveGroupInterface::setLookAroundAttempts(int32_t attempts)
 void MoveGroupInterface::allowReplanning(bool flag)
 {
   impl_->can_replan_ = flag;
-  RCLCPP_DEBUG(LOGGER, "Replanning: %s", flag ? "yes" : "no");
+  RCLCPP_DEBUG(logger_, "Replanning: %s", flag ? "yes" : "no");
 }
 
 void MoveGroupInterface::setReplanAttempts(int32_t attempts)
 {
   if (attempts < 0)
   {
-    RCLCPP_ERROR(LOGGER, "Tried to set negative number of replan attempts");
+    RCLCPP_ERROR(logger_, "Tried to set negative number of replan attempts");
   }
   else
   {
-    RCLCPP_DEBUG_STREAM(LOGGER, "Replan Attempts: " << attempts);
+    RCLCPP_DEBUG_STREAM(logger_, "Replan Attempts: " << attempts);
     impl_->replan_attempts_ = attempts;
   }
 }
@@ -2227,11 +2231,11 @@ void MoveGroupInterface::setReplanDelay(double delay)
 {
   if (delay < 0.0)
   {
-    RCLCPP_ERROR(LOGGER, "Tried to set negative replan delay");
+    RCLCPP_ERROR(logger_, "Tried to set negative replan delay");
   }
   else
   {
-    RCLCPP_DEBUG_STREAM(LOGGER, "Replan Delay: " << delay);
+    RCLCPP_DEBUG_STREAM(logger_, "Replan Delay: " << delay);
     impl_->replan_delay_ = delay;
   }
 }
