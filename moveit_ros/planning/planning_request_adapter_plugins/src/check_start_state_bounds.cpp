@@ -94,6 +94,7 @@ public:
     // Read parameters
     const auto params = param_listener_->get_params();
 
+    bool valid = true;
     bool changed_req = false;
     for (const moveit::core::JointModel* jmodel : jmodels)
     {
@@ -113,6 +114,7 @@ public:
             double after = start_state.getJointPositions(jmodel)[0];
             if (fabs(initial - after) > std::numeric_limits<double>::epsilon())
             {
+              valid = false;
               changed_req = true;
             }
           }
@@ -125,6 +127,7 @@ public:
           double copy[3] = { p[0], p[1], p[2] };
           if (static_cast<const moveit::core::PlanarJointModel*>(jmodel)->normalizeRotation(copy))
           {
+            valid = false;
             start_state.setJointPositions(jmodel, copy);
             changed_req = true;
           }
@@ -137,50 +140,53 @@ public:
           double copy[7] = { p[0], p[1], p[2], p[3], p[4], p[5], p[6] };
           if (static_cast<const moveit::core::FloatingJointModel*>(jmodel)->normalizeRotation(copy))
           {
+            valid = false;
             start_state.setJointPositions(jmodel, copy);
             changed_req = true;
           }
           break;
         }
-        default:
+        case moveit::core::JointModel::PRISMATIC:
+        case moveit::core::JointModel::UNKNOWN:
+        case moveit::core::JointModel::FIXED:
+          break;
+      }
+
+      if (!start_state.satisfiesBounds(jmodel))
+      {
+        valid = false;
+        std::stringstream joint_values;
+        std::stringstream joint_bounds_low;
+        std::stringstream joint_bounds_hi;
+        const double* p = start_state.getJointPositions(jmodel);
+        for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
         {
-          if (!start_state.satisfiesBounds(jmodel))
-          {
-            std::stringstream joint_values;
-            std::stringstream joint_bounds_low;
-            std::stringstream joint_bounds_hi;
-            const double* p = start_state.getJointPositions(jmodel);
-            for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
-            {
-              joint_values << p[k] << ' ';
-            }
-            const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
-            for (const moveit::core::VariableBounds& variable_bounds : b)
-            {
-              joint_bounds_low << variable_bounds.min_position_ << ' ';
-              joint_bounds_hi << variable_bounds.max_position_ << ' ';
-            }
-            RCLCPP_ERROR(logger_,
-                         "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
-                         "the range [%s], [%s].",
-                         jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
-                         joint_bounds_hi.str().c_str());
-          }
+          joint_values << p[k] << ' ';
         }
+        const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
+        for (const moveit::core::VariableBounds& variable_bounds : b)
+        {
+          joint_bounds_low << variable_bounds.min_position_ << ' ';
+          joint_bounds_hi << variable_bounds.max_position_ << ' ';
+        }
+        RCLCPP_ERROR(logger_,
+                     "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
+                     "the range [%s], [%s].",
+                     jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
+                     joint_bounds_hi.str().c_str());
       }
     }
 
-    // If we made any changes, consider using them them
+    // If we made any changes, consider using them
     if (params.fix_start_state && changed_req)
     {
       RCLCPP_WARN(logger_, "Changing start state.");
       moveit::core::robotStateToRobotStateMsg(start_state, req.start_state);
-      return moveit::core::MoveItErrorCode(moveit_msgs::msg::MoveItErrorCodes::SUCCESS, std::string(""),
-                                           getDescription());
+      return moveit::core::MoveItErrorCode(moveit_msgs::msg::MoveItErrorCodes::SUCCESS, std::string(""), getDescription());
     }
 
     auto status = moveit::core::MoveItErrorCode();
-    if (!changed_req)
+    if (valid)
     {
       status.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
     }
