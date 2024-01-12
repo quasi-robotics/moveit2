@@ -290,45 +290,48 @@ bool PlanningPipeline::generatePlan(const planning_scene::PlanningSceneConstPtr&
       }
     }
 
-    // Call planners
-    for (const auto& planner_name : pipeline_parameters_.planning_plugins)
+    if (res.error_code)
     {
-      const auto& planner = planner_map_.at(planner_name);
-      // Update reference trajectory with latest solution (if available)
-      if (res.trajectory)
+      // Call planners
+      for (const auto& planner_name : pipeline_parameters_.planning_plugins)
       {
-        mutable_request.trajectory_constraints.constraints = getTrajectoryConstraints(res.trajectory);
-      }
+        const auto& planner = planner_map_.at(planner_name);
+        // Update reference trajectory with the latest solution (if available)
+        if (res.trajectory)
+        {
+          mutable_request.trajectory_constraints.constraints = getTrajectoryConstraints(res.trajectory);
+        }
 
-      // Try creating a planning context
-      planning_interface::PlanningContextPtr context =
-          planner->getPlanningContext(planning_scene, mutable_request, res.error_code);
-      if (!context)
-      {
-        RCLCPP_ERROR(node_->get_logger(),
-                     "Failed to create PlanningContext for planner '%s'. Aborting planning pipeline.",
-                     planner->getDescription().c_str());
-        res.error_code = moveit::core::MoveItErrorCode::PLANNING_FAILED;
-        break;
-      }
+        // Try creating a planning context
+        planning_interface::PlanningContextPtr context =
+            planner->getPlanningContext(planning_scene, mutable_request, res.error_code);
+        if (!context)
+        {
+          RCLCPP_ERROR(node_->get_logger(),
+                       "Failed to create PlanningContext for planner '%s'. Aborting planning pipeline.",
+                       planner->getDescription().c_str());
+          res.error_code = moveit::core::MoveItErrorCode::PLANNING_FAILED;
+          break;
+        }
 
-      // Run planner
-      RCLCPP_INFO(node_->get_logger(), "Calling Planner '%s'", planner->getDescription().c_str());
-      context->solve(res);
-      publishPipelineState(mutable_request, res, planner->getDescription());
+        // Run planner
+        RCLCPP_INFO(node_->get_logger(), "Calling Planner '%s'", planner->getDescription().c_str());
+        context->solve(res);
+        publishPipelineState(mutable_request, res, planner->getDescription());
 
-      // If planner does not succeed, break chain and return false
-      if (!res.error_code)
-      {
-        RCLCPP_ERROR(node_->get_logger(), "Planner '%s' failed", planner->getDescription().c_str());
-        break;
+        // If planner does not succeed, break chain and return false
+        if (!res.error_code)
+        {
+          RCLCPP_ERROR(node_->get_logger(), "Planner '%s' failed", planner->getDescription().c_str());
+          break;
+        }
       }
     }
 
     // Call plan response adapter chain
     if (res.error_code)
     {
-      // Call plan request adapter chain
+      // Call plan response adapter chain
       for (const auto& res_adapter : planning_response_adapter_vector_)
       {
         assert(res_adapter);
