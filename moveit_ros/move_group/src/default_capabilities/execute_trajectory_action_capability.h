@@ -65,6 +65,7 @@ private:
   void preemptExecuteTrajectoryCallback();
   void setExecuteTrajectoryState(MoveGroupState state, const std::shared_ptr<ExecTrajectoryGoal>& goal);
 
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
   std::shared_ptr<rclcpp_action::Server<ExecTrajectory>> execute_action_server_;
 };
 

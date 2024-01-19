@@ -61,6 +61,7 @@ void MoveGroupExecuteTrajectoryAction::initialize()
 {
   auto node = context_->moveit_cpp_->getNode();
   // start the move action server
+  callback_group_ = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   execute_action_server_ = rclcpp_action::create_server<ExecTrajectory>(
       node->get_node_base_interface(), node->get_node_clock_interface(), node->get_node_logging_interface(),
       node->get_node_waitables_interface(), EXECUTE_ACTION_NAME,
@@ -68,7 +69,8 @@ void MoveGroupExecuteTrajectoryAction::initialize()
         return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
       },
       [](const std::shared_ptr<ExecTrajectoryGoal>& /* unused */) { return rclcpp_action::CancelResponse::ACCEPT; },
-      [this](const auto& goal) { executePathCallback(goal); });
+      [this](const auto& goal) { executePathCallback(goal); },
+      rcl_action_server_get_default_options(), callback_group_);
 }
 
 void MoveGroupExecuteTrajectoryAction::executePathCallback(const std::shared_ptr<ExecTrajectoryGoal>& goal)

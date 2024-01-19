@@ -68,6 +68,7 @@ private:
   bool planUsingPlanningPipeline(const planning_interface::MotionPlanRequest& req,
                                  plan_execution::ExecutableMotionPlan& plan);
 
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
   std::shared_ptr<rclcpp_action::Server<MGAction>> execute_action_server_;
 
   MoveGroupState move_state_;

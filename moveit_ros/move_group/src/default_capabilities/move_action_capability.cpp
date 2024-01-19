@@ -65,6 +65,7 @@ void MoveGroupMoveAction::initialize()
 {
   // start the move action server
   auto node = context_->moveit_cpp_->getNode();
+  callback_group_ = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   execute_action_server_ = rclcpp_action::create_server<MGAction>(
       node, MOVE_ACTION,
       [](const rclcpp_action::GoalUUID& /*unused*/, const std::shared_ptr<const MGAction::Goal>& /*unused*/) {
@@ -79,7 +80,8 @@ void MoveGroupMoveAction::initialize()
       [this](const std::shared_ptr<MGActionGoal>& goal) {
         std::thread{ [this](const std::shared_ptr<move_group::MGActionGoal>& goal) { executeMoveCallback(goal); }, goal }
             .detach();
-      });
+      },
+      rcl_action_server_get_default_options(), callback_group_);
 }
 
 void MoveGroupMoveAction::executeMoveCallback(const std::shared_ptr<MGActionGoal>& goal)
