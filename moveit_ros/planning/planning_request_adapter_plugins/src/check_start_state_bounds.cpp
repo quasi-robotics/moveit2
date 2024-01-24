@@ -155,25 +155,40 @@ public:
       if (!start_state.satisfiesBounds(jmodel))
       {
         valid = false;
-        std::stringstream joint_values;
-        std::stringstream joint_bounds_low;
-        std::stringstream joint_bounds_hi;
-        const double* p = start_state.getJointPositions(jmodel);
-        for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
+        if (start_state.satisfiesBounds(jmodel, params.start_state_max_bounds_error))
         {
-          joint_values << p[k] << ' ';
+/* Unfortunately it is no longer possible to preserve original start state with the new planning pipeline architecture, so the start_state_max_bounds_error parameter
+ * should not be set to high values and should be always smaller than trajectory_execution.allowed_start_tolerance
+          if (!prefix_state)
+            prefix_state = std::make_shared<moveit::core::RobotState>(start_state);
+*/
+          start_state.enforceBounds(jmodel);
+          changed_req = true;
+          RCLCPP_INFO(logger_, "Starting state is just outside bounds (joint '%s'). Assuming within bounds.",
+                      jmodel->getName().c_str());
         }
-        const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
-        for (const moveit::core::VariableBounds& variable_bounds : b)
+        else
         {
-          joint_bounds_low << variable_bounds.min_position_ << ' ';
-          joint_bounds_hi << variable_bounds.max_position_ << ' ';
+          std::stringstream joint_values;
+          std::stringstream joint_bounds_low;
+          std::stringstream joint_bounds_hi;
+          const double* p = start_state.getJointPositions(jmodel);
+          for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
+          {
+            joint_values << p[k] << ' ';
+          }
+          const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
+          for (const moveit::core::VariableBounds& variable_bounds : b)
+          {
+            joint_bounds_low << variable_bounds.min_position_ << ' ';
+            joint_bounds_hi << variable_bounds.max_position_ << ' ';
+          }
+          RCLCPP_ERROR(logger_,
+                       "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
+                       "the range [%s], [%s].",
+                       jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
+                       joint_bounds_hi.str().c_str());
         }
-        RCLCPP_ERROR(logger_,
-                     "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
-                     "the range [%s], [%s].",
-                     jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
-                     joint_bounds_hi.str().c_str());
       }
     }
 
