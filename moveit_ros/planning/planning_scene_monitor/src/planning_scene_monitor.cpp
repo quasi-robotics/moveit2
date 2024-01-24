@@ -506,14 +506,15 @@ void PlanningSceneMonitor::scenePublishingThread()
         new_scene_update_ = UPDATE_NONE;
       }
     }
-    if (publish_msg)
+    if (publish_msg && rclcpp::ok())
     {
       planning_scene_publisher_->publish(msg);
       if (is_full)
         RCLCPP_DEBUG(logger_, "Published full planning scene: '%s'", msg.name.c_str());
-      rate.sleep();
+      if(rclcpp::ok())
+        rate.sleep();
     }
-  } while (publish_planning_scene_);
+  } while (publish_planning_scene_ && rclcpp::ok());
 }
 
 void PlanningSceneMonitor::getMonitoredTopics(std::vector<std::string>& topics) const
