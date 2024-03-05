@@ -286,45 +286,46 @@ bool PlanningPipeline::generatePlan(const planning_scene::PlanningSceneConstPtr&
         RCLCPP_ERROR(node_->get_logger(),
                      "PlanningRequestAdapter '%s' failed, because '%s'. Aborting planning pipeline.",
                      req_adapter->getDescription().c_str(), status.message.c_str());
-        break;
+        active_ = false;
+        return false;
       }
     }
 
-    if (res.error_code)
+    // Call planners
+    for (const auto& planner_name : pipeline_parameters_.planning_plugins)
     {
-      // Call planners
-      for (const auto& planner_name : pipeline_parameters_.planning_plugins)
+      const auto& planner = planner_map_.at(planner_name);
+      // Update reference trajectory with the latest solution (if available)
+      if (res.trajectory)
       {
-        const auto& planner = planner_map_.at(planner_name);
-        // Update reference trajectory with the latest solution (if available)
-        if (res.trajectory)
-        {
-          mutable_request.trajectory_constraints.constraints = getTrajectoryConstraints(res.trajectory);
-        }
+        mutable_request.trajectory_constraints.constraints = getTrajectoryConstraints(res.trajectory);
+      }
 
-        // Try creating a planning context
-        planning_interface::PlanningContextPtr context =
-            planner->getPlanningContext(planning_scene, mutable_request, res.error_code);
-        if (!context)
-        {
-          RCLCPP_ERROR(node_->get_logger(),
-                       "Failed to create PlanningContext for planner '%s'. Aborting planning pipeline.",
-                       planner->getDescription().c_str());
-          res.error_code = moveit::core::MoveItErrorCode::PLANNING_FAILED;
-          break;
-        }
+      // Try creating a planning context
+      planning_interface::PlanningContextPtr context =
+          planner->getPlanningContext(planning_scene, mutable_request, res.error_code);
+      if (!context)
+      {
+        RCLCPP_ERROR(node_->get_logger(),
+                     "Failed to create PlanningContext for planner '%s'. Aborting planning pipeline.",
+                     planner->getDescription().c_str());
+        res.error_code = moveit::core::MoveItErrorCode::PLANNING_FAILED;
+        active_ = false;
+        return false;
+      }
 
         // Run planner
         RCLCPP_INFO(node_->get_logger(), "Calling Planner '%s'", planner->getDescription().c_str());
         context->solve(res);
         publishPipelineState(mutable_request, res, planner->getDescription());
 
-        // If planner does not succeed, break chain and return false
-        if (!res.error_code)
-        {
-          RCLCPP_ERROR(node_->get_logger(), "Planner '%s' failed", planner->getDescription().c_str());
-          break;
-        }
+      // If planner does not succeed, break chain and return false
+      if (!res.error_code)
+      {
+        RCLCPP_ERROR(node_->get_logger(), "Planner '%s' failed with error code %s", planner->getDescription().c_str(),
+                     errorCodeToString(res.error_code).c_str());
+        active_ = false;
+        return false;
       }
     }
 
@@ -341,9 +342,10 @@ bool PlanningPipeline::generatePlan(const planning_scene::PlanningSceneConstPtr&
         // If adapter does not succeed, break chain and return false
         if (!res.error_code)
         {
-          RCLCPP_ERROR(node_->get_logger(), "PlanningResponseAdapter '%s' failed",
-                       res_adapter->getDescription().c_str());
-          break;
+          RCLCPP_ERROR(node_->get_logger(), "PlanningResponseAdapter '%s' failed with error code %s",
+                       res_adapter->getDescription().c_str(), errorCodeToString(res.error_code).c_str());
+          active_ = false;
+          return false;
         }
       }
     }
@@ -368,7 +370,7 @@ bool PlanningPipeline::generatePlan(const planning_scene::PlanningSceneConstPtr&
 
   // Set planning pipeline to inactive
   active_ = false;
-  return bool(res);
+  return static_cast<bool>(res);
 }
 
 void PlanningPipeline::terminate() const
