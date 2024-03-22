@@ -46,7 +46,7 @@ namespace
 {
 rclcpp::Logger getLogger()
 {
-  return moveit::getLogger("shape_mask");
+  return moveit::getLogger("moveit.ros.shape_mask");
 }
 }  // namespace
 
