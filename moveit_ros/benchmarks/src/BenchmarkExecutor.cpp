@@ -47,8 +47,10 @@
 // boost/progress.hpp is deprecated and will be replaced by boost/timer/progress_display.hpp in Boost 1.72.
 // Until then we need to suppress the deprecation warning.
 #define BOOST_ALLOW_DEPRECATED_HEADERS
+#define BOOST_TIMER_ENABLE_DEPRECATED
 #include <boost/regex.hpp>
 #include <boost/progress.hpp>
+#undef BOOST_TIMER_ENABLE_DEPRECATED
 #undef BOOST_ALLOW_DEPRECATED_HEADERS
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <math.h>
