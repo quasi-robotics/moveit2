@@ -74,7 +74,7 @@ TEST_F(ServoRosFixture, testJointJog)
 
   // Call input type service
   auto request = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
-  request->command_type = 0;
+  request->command_type = moveit_msgs::srv::ServoCommandType::Request::JOINT_JOG;
   auto response = switch_input_client_->async_send_request(request);
   ASSERT_EQ(response.get()->success, true);
 
@@ -90,7 +90,7 @@ TEST_F(ServoRosFixture, testJointJog)
 
   std::fill(jog_cmd.velocities.begin(), jog_cmd.velocities.end(), 0.0);
 
-  jog_cmd.velocities[6] = 1.0;
+  jog_cmd.velocities[6] = 0.5;
 
   size_t count = 0;
   while (rclcpp::ok() && count < NUM_COMMANDS)
@@ -98,7 +98,7 @@ TEST_F(ServoRosFixture, testJointJog)
     jog_cmd.header.stamp = servo_test_node_->now();
     joint_jog_publisher->publish(jog_cmd);
     count++;
-    rclcpp::sleep_for(std::chrono::milliseconds(200));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
   }
 
   ASSERT_GE(traj_count_, NUM_COMMANDS);
@@ -106,6 +106,25 @@ TEST_F(ServoRosFixture, testJointJog)
   moveit_servo::StatusCode status = status_;
   RCLCPP_INFO_STREAM(servo_test_node_->get_logger(), "Status after jointjog: " << static_cast<size_t>(status));
   ASSERT_EQ(status_, moveit_servo::StatusCode::NO_WARNING);
+
+  // Ensure error when number of commands doesn't match number of joints
+  int traj_count_before = traj_count_;
+  jog_cmd.velocities.pop_back();
+  jog_cmd.header.stamp = servo_test_node_->now();
+  joint_jog_publisher->publish(jog_cmd);
+  rclcpp::sleep_for(std::chrono::milliseconds(100));
+  ASSERT_EQ(status_, moveit_servo::StatusCode::INVALID);
+  jog_cmd.velocities.push_back(1.0);
+  jog_cmd.velocities.push_back(1.0);
+  jog_cmd.header.stamp = servo_test_node_->now();
+  joint_jog_publisher->publish(jog_cmd);
+  rclcpp::sleep_for(std::chrono::milliseconds(100));
+  ASSERT_EQ(status_, moveit_servo::StatusCode::INVALID);
+
+  // No additional trajectories were generated with the invalid commands
+  ASSERT_EQ(traj_count_, traj_count_before);
+  status = status_;
+  RCLCPP_INFO_STREAM(servo_test_node_->get_logger(), "Status after invalid jointjog: " << static_cast<size_t>(status));
 }
 
 TEST_F(ServoRosFixture, testTwist)
@@ -116,7 +135,7 @@ TEST_F(ServoRosFixture, testTwist)
       "/servo_node/delta_twist_cmds", rclcpp::SystemDefaultsQoS());
 
   auto request = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
-  request->command_type = 1;
+  request->command_type = moveit_msgs::srv::ServoCommandType::Request::TWIST;
   auto response = switch_input_client_->async_send_request(request);
   ASSERT_EQ(response.get()->success, true);
 
@@ -137,7 +156,7 @@ TEST_F(ServoRosFixture, testTwist)
     twist_cmd.header.stamp = servo_test_node_->now();
     twist_publisher->publish(twist_cmd);
     count++;
-    rclcpp::sleep_for(std::chrono::milliseconds(200));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
   }
 
   ASSERT_GE(traj_count_, NUM_COMMANDS);
@@ -155,20 +174,20 @@ TEST_F(ServoRosFixture, testPose)
       "/servo_node/pose_target_cmds", rclcpp::SystemDefaultsQoS());
 
   auto request = std::make_shared<moveit_msgs::srv::ServoCommandType::Request>();
-  request->command_type = 2;
+  request->command_type = moveit_msgs::srv::ServoCommandType::Request::POSE;
   auto response = switch_input_client_->async_send_request(request);
   ASSERT_EQ(response.get()->success, true);
 
   geometry_msgs::msg::PoseStamped pose_cmd;
   pose_cmd.header.frame_id = "panda_link0";  // Planning frame
 
-  pose_cmd.pose.position.x = 0.3;
-  pose_cmd.pose.position.y = 0.0;
+  pose_cmd.pose.position.x = 0.2;
+  pose_cmd.pose.position.y = -0.2;
   pose_cmd.pose.position.z = 0.6;
-  pose_cmd.pose.orientation.x = 0.7;
-  pose_cmd.pose.orientation.y = -0.7;
-  pose_cmd.pose.orientation.z = -0.000014;
-  pose_cmd.pose.orientation.w = -0.0000015;
+  pose_cmd.pose.orientation.x = 0.7071;
+  pose_cmd.pose.orientation.y = -0.7071;
+  pose_cmd.pose.orientation.z = 0.0;
+  pose_cmd.pose.orientation.w = 0.0;
 
   ASSERT_NE(state_count_, 0);
 
@@ -178,7 +197,7 @@ TEST_F(ServoRosFixture, testPose)
     pose_cmd.header.stamp = servo_test_node_->now();
     pose_publisher->publish(pose_cmd);
     count++;
-    rclcpp::sleep_for(std::chrono::milliseconds(200));
+    rclcpp::sleep_for(std::chrono::milliseconds(100));
   }
 
   ASSERT_GE(traj_count_, NUM_COMMANDS);

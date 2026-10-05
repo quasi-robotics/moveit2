@@ -36,21 +36,21 @@
 
 // Modified by Pilz GmbH & Co. KG
 
-#include <pilz_industrial_motion_planner/move_group_sequence_action.h>
+#include <pilz_industrial_motion_planner/move_group_sequence_action.hpp>
 
 #include <time.h>
 
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/plan_execution/plan_execution.h>
-#include <moveit/planning_pipeline/planning_pipeline.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/trajectory_processing/trajectory_tools.h>
-#include <moveit/utils/message_checks.h>
-#include <moveit/moveit_cpp/moveit_cpp.h>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/plan_execution/plan_execution.hpp>
+#include <moveit/planning_pipeline/planning_pipeline.hpp>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit/trajectory_processing/trajectory_tools.hpp>
+#include <moveit/utils/message_checks.hpp>
+#include <moveit/moveit_cpp/moveit_cpp.hpp>
 #include <moveit/utils/logger.hpp>
 
-#include <pilz_industrial_motion_planner/command_list_manager.h>
-#include <pilz_industrial_motion_planner/trajectory_generation_exceptions.h>
+#include <pilz_industrial_motion_planner/command_list_manager.hpp>
+#include <pilz_industrial_motion_planner/trajectory_generation_exceptions.hpp>
 
 namespace pilz_industrial_motion_planner
 {
@@ -72,8 +72,10 @@ void MoveGroupSequenceAction::initialize()
 {
   // start the move action server
   RCLCPP_INFO_STREAM(getLogger(), "initialize move group sequence action");
+  // Use MutuallyExclusiveCallbackGroup to prevent race conditions in callbacks.
+  // See: https://github.com/moveit/moveit2/issues/3117 for details.
   action_callback_group_ =
-      context_->moveit_cpp_->getNode()->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+      context_->moveit_cpp_->getNode()->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   move_action_server_ = rclcpp_action::create_server<moveit_msgs::action::MoveGroupSequence>(
       context_->moveit_cpp_->getNode(), "sequence_move_group",
       [](const rclcpp_action::GoalUUID& /* unused */,
@@ -207,15 +209,6 @@ void MoveGroupSequenceAction::executeMoveCallbackPlanOnly(
 {
   RCLCPP_INFO(getLogger(), "Planning request received for MoveGroupSequenceAction action.");
 
-  // lock the scene so that it does not modify the world representation while
-  // diff() is called
-  planning_scene_monitor::LockedPlanningSceneRO lscene(context_->planning_scene_monitor_);
-
-  const planning_scene::PlanningSceneConstPtr& the_scene =
-      (moveit::core::isEmpty(goal->planning_options.planning_scene_diff)) ?
-          static_cast<const planning_scene::PlanningSceneConstPtr&>(lscene) :
-          lscene->diff(goal->planning_options.planning_scene_diff);
-
   rclcpp::Time planning_start = context_->moveit_cpp_->getNode()->now();
   RobotTrajCont traj_vec;
   try
@@ -231,7 +224,8 @@ void MoveGroupSequenceAction::executeMoveCallbackPlanOnly(
       return;
     }
 
-    traj_vec = command_list_manager_->solve(the_scene, planning_pipeline, goal->request);
+    auto scene = context_->planning_scene_monitor_->copyPlanningScene(goal->planning_options.planning_scene_diff);
+    traj_vec = command_list_manager_->solve(scene, planning_pipeline, goal->request);
   }
   catch (const MoveItErrorCodeException& ex)
   {
@@ -275,7 +269,6 @@ bool MoveGroupSequenceAction::planUsingSequenceManager(const moveit_msgs::msg::M
 {
   setMoveState(move_group::PLANNING);
 
-  planning_scene_monitor::LockedPlanningSceneRO lscene(plan.planning_scene_monitor);
   RobotTrajCont traj_vec;
   try
   {
@@ -289,7 +282,7 @@ bool MoveGroupSequenceAction::planUsingSequenceManager(const moveit_msgs::msg::M
       return false;
     }
 
-    traj_vec = command_list_manager_->solve(plan.planning_scene, planning_pipeline, req);
+    traj_vec = command_list_manager_->solve(plan.copyPlanningScene(), planning_pipeline, req);
   }
   catch (const MoveItErrorCodeException& ex)
   {

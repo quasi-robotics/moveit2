@@ -1,5 +1,6 @@
 import os
 import launch
+from launch.event_handlers import OnProcessExit
 import unittest
 import launch_ros
 import launch_testing
@@ -22,8 +23,9 @@ def generate_test_description():
         .to_dict()
     }
 
-    # This filter parameter should be >1. Increase it for greater smoothing but slower motion.
-    low_pass_filter_coeff = {"butterworth_filter_coeff": 1.5}
+    # This sets the update rate and planning group name for the acceleration limiting filter.
+    acceleration_filter_update_period = {"update_period": 0.01}
+    planning_group_name = {"planning_group_name": "panda_arm"}
 
     # ros2_control using FakeSystem as hardware
     ros2_controllers_path = os.path.join(
@@ -50,13 +52,21 @@ def generate_test_description():
             "300",
             "--controller-manager",
             "/controller_manager",
+            "--param-file",
+            ros2_controllers_path,
         ],
     )
 
     panda_arm_controller_spawner = launch_ros.actions.Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["panda_arm_controller", "-c", "/controller_manager"],
+        arguments=[
+            "panda_arm_controller",
+            "-c",
+            "/controller_manager",
+            "--param-file",
+            ros2_controllers_path,
+        ],
     )
 
     # Component nodes for tf and Servo
@@ -76,7 +86,7 @@ def generate_test_description():
                 package="tf2_ros",
                 plugin="tf2_ros::StaticTransformBroadcasterNode",
                 name="static_tf2_broadcaster",
-                parameters=[{"/child_frame_id": "panda_link0", "/frame_id": "world"}],
+                parameters=[{"child_frame_id": "/panda_link0", "frame_id": "/world"}],
             ),
         ],
         output="screen",
@@ -91,7 +101,8 @@ def generate_test_description():
         ),
         parameters=[
             servo_params,
-            low_pass_filter_coeff,
+            acceleration_filter_update_period,
+            planning_group_name,
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
             moveit_config.robot_description_kinematics,
@@ -110,7 +121,14 @@ def generate_test_description():
             joint_state_broadcaster_spawner,
             panda_arm_controller_spawner,
             test_container,
-            launch.actions.TimerAction(period=2.0, actions=[servo_gtest]),
+            # Gate the gtest launch on panda_arm_controller_spawner exiting so
+            # controllers are guaranteed active before the test starts.
+            launch.actions.RegisterEventHandler(
+                OnProcessExit(
+                    target_action=panda_arm_controller_spawner,
+                    on_exit=[servo_gtest],
+                )
+            ),
             launch_testing.actions.ReadyToTest(),
         ]
     ), {

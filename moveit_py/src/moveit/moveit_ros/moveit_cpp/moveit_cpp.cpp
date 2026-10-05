@@ -34,8 +34,10 @@
 
 /* Author: Peter David Fagan */
 
-#include "moveit_cpp.h"
+#include "moveit_cpp.hpp"
+#include <pybind11/pytypes.h>
 #include <moveit/utils/logger.hpp>
+#include <string>
 
 namespace moveit_py
 {
@@ -60,8 +62,10 @@ void initMoveitPy(py::module& m)
   The MoveItPy class is the main interface to the MoveIt Python API. It is a wrapper around the MoveIt C++ API.
 									     )")
 
-      .def(py::init([](const std::string& node_name, const std::vector<std::string>& launch_params_filepaths,
-                       const py::object& config_dict, bool provide_planning_service) {
+      .def(py::init([](const std::string& node_name, const std::string& name_space,
+                       const std::vector<std::string>& launch_params_filepaths, const py::object& config_dict,
+                       bool provide_planning_service,
+                       const std::optional<std::map<std::string, std::string>>& remappings) {
              // This section is used to load the appropriate node parameters before spinning a moveit_cpp instance
              // Priority is given to parameters supplied directly via a config_dict, followed by launch parameters
              // and finally no supplied parameters.
@@ -81,6 +85,17 @@ void initMoveitPy(py::module& m)
                {
                  launch_arguments.push_back("--params-file");
                  launch_arguments.push_back(launch_params_filepath);
+               }
+             }
+
+             if (remappings.has_value())
+             {
+               for (const auto& [key, value] : *remappings)
+               {
+                 std::string argument = key;
+                 argument.append(":=").append(value);
+                 launch_arguments.push_back("--remap");
+                 launch_arguments.push_back(std::move(argument));
                }
              }
 
@@ -106,7 +121,7 @@ void initMoveitPy(py::module& m)
                  .arguments(launch_arguments);
 
              RCLCPP_INFO(getLogger(), "Initialize node and executor");
-             rclcpp::Node::SharedPtr node = rclcpp::Node::make_shared(node_name, "", node_options);
+             rclcpp::Node::SharedPtr node = rclcpp::Node::make_shared(node_name, name_space, node_options);
              std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor =
                  std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
 
@@ -133,11 +148,11 @@ void initMoveitPy(py::module& m)
 
              return moveit_cpp_ptr;
            }),
-           py::arg("node_name") = "moveit_py",
+           py::arg("node_name") = "moveit_py", py::arg("name_space") = "",
            py::arg("launch_params_filepaths") =
                utils.attr("get_launch_params_filepaths")().cast<std::vector<std::string>>(),
            py::arg("config_dict") = py::none(), py::arg("provide_planning_service") = true,
-           py::return_value_policy::take_ownership,
+           py::arg("remappings") = py::none(), py::return_value_policy::take_ownership,
            R"(
            Initialize moveit_cpp node and the planning scene service.
            )")
@@ -170,7 +185,7 @@ void initMoveitPy(py::module& m)
            Returns the planning scene monitor.
            )")
 
-      .def("get_trajactory_execution_manager", &moveit_cpp::MoveItCpp::getTrajectoryExecutionManagerNonConst,
+      .def("get_trajectory_execution_manager", &moveit_cpp::MoveItCpp::getTrajectoryExecutionManagerNonConst,
            py::return_value_policy::reference,
            R"(
            Returns the trajectory execution manager.

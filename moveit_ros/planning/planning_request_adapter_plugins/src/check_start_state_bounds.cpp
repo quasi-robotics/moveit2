@@ -43,9 +43,9 @@
  * outside its limits for it to be “fixable”.
  */
 
-#include <moveit/planning_interface/planning_request_adapter.h>
-#include <moveit/trajectory_processing/trajectory_tools.h>
-#include <moveit/robot_state/conversions.h>
+#include <moveit/planning_interface/planning_request_adapter.hpp>
+#include <moveit/trajectory_processing/trajectory_tools.hpp>
+#include <moveit/robot_state/conversions.hpp>
 #include <class_loader/class_loader.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -53,7 +53,7 @@
 #include <rclcpp/parameter_value.hpp>
 #include <moveit/utils/logger.hpp>
 
-#include <default_request_adapter_parameters.hpp>
+#include <moveit_ros_planning/default_request_adapter_parameters.hpp>
 
 namespace default_planning_request_adapters
 {
@@ -65,6 +65,8 @@ public:
   CheckStartStateBounds() : logger_(moveit::getLogger("moveit.ros.check_start_state_bounds"))
   {
   }
+
+  ~CheckStartStateBounds() override = default;
 
   void initialize(const rclcpp::Node::SharedPtr& node, const std::string& parameter_namespace) override
   {
@@ -94,15 +96,15 @@ public:
     // Read parameters
     const auto params = param_listener_->get_params();
 
-    bool valid = true;
-    bool changed_req = false;
+    bool should_fix_state = false;
+    bool is_out_of_bounds = false;
     for (const moveit::core::JointModel* jmodel : jmodels)
     {
       // Check if we have a revolute, continuous joint. If we do, then we only need to make sure
       // it is within the model's declared bounds (usually -Pi, Pi), since the values wrap around.
       // It is possible that the encoder maintains values outside the range [-Pi, Pi], to inform
       // how many times the joint was wrapped. Because of this, we remember the offsets for continuous
-      // joints, and we un-do them when the plan comes from the planner
+      // joints, and we undo them when the plan comes from the planner.
       switch (jmodel->getType())
       {
         case moveit::core::JointModel::REVOLUTE:
@@ -114,8 +116,7 @@ public:
             double after = start_state.getJointPositions(jmodel)[0];
             if (fabs(initial - after) > std::numeric_limits<double>::epsilon())
             {
-              valid = false;
-              changed_req = true;
+              should_fix_state |= true;
             }
           }
           break;
@@ -127,9 +128,8 @@ public:
           double copy[3] = { p[0], p[1], p[2] };
           if (static_cast<const moveit::core::PlanarJointModel*>(jmodel)->normalizeRotation(copy))
           {
-            valid = false;
             start_state.setJointPositions(jmodel, copy);
-            changed_req = true;
+            should_fix_state |= true;
           }
           break;
         }
@@ -140,77 +140,61 @@ public:
           double copy[7] = { p[0], p[1], p[2], p[3], p[4], p[5], p[6] };
           if (static_cast<const moveit::core::FloatingJointModel*>(jmodel)->normalizeRotation(copy))
           {
-            valid = false;
             start_state.setJointPositions(jmodel, copy);
-            changed_req = true;
+            should_fix_state |= true;
           }
           break;
         }
-        case moveit::core::JointModel::PRISMATIC:
-        case moveit::core::JointModel::UNKNOWN:
-        case moveit::core::JointModel::FIXED:
-          break;
+        default:
+        {
+          break;  // do nothing
+        }
       }
 
+      // Check the joint against its bounds.
       if (!start_state.satisfiesBounds(jmodel))
       {
-        valid = false;
-        if (start_state.satisfiesBounds(jmodel, params.start_state_max_bounds_error))
+        is_out_of_bounds |= true;
+
+        std::stringstream joint_values;
+        std::stringstream joint_bounds_low;
+        std::stringstream joint_bounds_hi;
+        const double* p = start_state.getJointPositions(jmodel);
+        for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
         {
-/* Unfortunately it is no longer possible to preserve original start state with the new planning pipeline architecture, so the start_state_max_bounds_error parameter
- * should not be set to high values and should be always smaller than trajectory_execution.allowed_start_tolerance
-          if (!prefix_state)
-            prefix_state = std::make_shared<moveit::core::RobotState>(start_state);
-*/
-          start_state.enforceBounds(jmodel);
-          changed_req = true;
-          RCLCPP_INFO(logger_, "Starting state is just outside bounds (joint '%s'). Assuming within bounds.",
-                      jmodel->getName().c_str());
+          joint_values << p[k] << ' ';
         }
-        else
+        const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
+        for (const moveit::core::VariableBounds& variable_bounds : b)
         {
-          std::stringstream joint_values;
-          std::stringstream joint_bounds_low;
-          std::stringstream joint_bounds_hi;
-          const double* p = start_state.getJointPositions(jmodel);
-          for (std::size_t k = 0; k < jmodel->getVariableCount(); ++k)
-          {
-            joint_values << p[k] << ' ';
-          }
-          const moveit::core::JointModel::Bounds& b = jmodel->getVariableBounds();
-          for (const moveit::core::VariableBounds& variable_bounds : b)
-          {
-            joint_bounds_low << variable_bounds.min_position_ << ' ';
-            joint_bounds_hi << variable_bounds.max_position_ << ' ';
-          }
-          RCLCPP_ERROR(logger_,
-                       "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
-                       "the range [%s], [%s].",
-                       jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
-                       joint_bounds_hi.str().c_str());
+          joint_bounds_low << variable_bounds.min_position_ << ' ';
+          joint_bounds_hi << variable_bounds.max_position_ << ' ';
         }
+        RCLCPP_ERROR(logger_,
+                     "Joint '%s' from the starting state is outside bounds by: [%s] should be in "
+                     "the range [%s], [%s].",
+                     jmodel->getName().c_str(), joint_values.str().c_str(), joint_bounds_low.str().c_str(),
+                     joint_bounds_hi.str().c_str());
       }
     }
 
-    // If we made any changes, consider using them
-    if (params.fix_start_state && changed_req)
-    {
-      RCLCPP_WARN(logger_, "Changing start state.");
-      moveit::core::robotStateToRobotStateMsg(start_state, req.start_state);
-      return moveit::core::MoveItErrorCode(moveit_msgs::msg::MoveItErrorCodes::SUCCESS, std::string(""), getDescription());
-    }
-
+    // Package up the adapter result, changing the state if applicable.
     auto status = moveit::core::MoveItErrorCode();
-    if (valid)
-    {
-      status.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
-    }
-    else
+    status.source = getDescription();
+    status.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
+
+    if (is_out_of_bounds || (!params.fix_start_state && should_fix_state))
     {
       status.val = moveit_msgs::msg::MoveItErrorCodes::START_STATE_INVALID;
       status.message = std::string("Start state out of bounds.");
     }
-    status.source = getDescription();
+    else if (params.fix_start_state && should_fix_state)
+    {
+      constexpr auto msg_string = "Normalized start state.";
+      status.message = msg_string;
+      RCLCPP_WARN(logger_, msg_string);
+      moveit::core::robotStateToRobotStateMsg(start_state, req.start_state);
+    }
     return status;
   }
 

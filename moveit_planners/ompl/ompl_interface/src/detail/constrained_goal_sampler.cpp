@@ -34,9 +34,9 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/ompl_interface/detail/constrained_goal_sampler.h>
-#include <moveit/ompl_interface/model_based_planning_context.h>
-#include <moveit/ompl_interface/detail/state_validity_checker.h>
+#include <moveit/ompl_interface/detail/constrained_goal_sampler.hpp>
+#include <moveit/ompl_interface/model_based_planning_context.hpp>
+#include <moveit/ompl_interface/detail/state_validity_checker.hpp>
 #include <moveit/utils/logger.hpp>
 
 #include <utility>
@@ -89,7 +89,8 @@ bool ConstrainedGoalSampler::stateValidityCallback(ob::State* new_goal, const mo
   moveit::core::RobotState solution_state(*state);
   solution_state.setJointGroupPositions(jmg, jpos);
   solution_state.update();
-  return checkStateValidity(new_goal, solution_state, verbose);
+  return checkStateValidity(new_goal, solution_state, verbose) &&
+         kinematic_constraint_set_->decide(solution_state, verbose).satisfied;
 }
 
 bool ConstrainedGoalSampler::sampleUsingConstraintSampler(const ob::GoalLazySamples* gls, ob::State* new_goal)

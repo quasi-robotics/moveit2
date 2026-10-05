@@ -34,8 +34,8 @@
 
 /* Author: Ioan Sucan, Dave Coleman */
 
-#include <moveit/kinematics_plugin_loader/kinematics_plugin_loader.h>
-#include <moveit/rdf_loader/rdf_loader.h>
+#include <moveit/kinematics_plugin_loader/kinematics_plugin_loader.hpp>
+#include <moveit/rdf_loader/rdf_loader.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -197,7 +197,7 @@ public:
   {
     std::scoped_lock slock(cache_lock_);
     kinematics::KinematicsBasePtr& cached = instances_[jmg];
-    if (cached.unique())
+    if (cached.use_count() == 1)
       return std::move(cached);  // pass on unique instance
 
     // create a new instance and store in instances_

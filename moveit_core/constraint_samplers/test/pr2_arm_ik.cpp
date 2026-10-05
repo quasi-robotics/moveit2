@@ -36,7 +36,7 @@
 
 #include <angles/angles.h>
 #include <moveit/utils/logger.hpp>
-#include "pr2_arm_ik.h"
+#include "pr2_arm_ik.hpp"
 
 /**** List of angles (for reference) *******
       th1 = shoulder/turret pan
@@ -184,7 +184,9 @@ void PR2ArmIK::addJointToChainInfo(const urdf::JointConstSharedPtr& joint, movei
       limit.has_position_limits = true;
     }
     else
+    {
       limit.has_position_limits = false;
+    }
   }
   else
   {
@@ -198,7 +200,9 @@ void PR2ArmIK::addJointToChainInfo(const urdf::JointConstSharedPtr& joint, movei
     limit.has_velocity_limits = 1;
   }
   else
+  {
     limit.has_velocity_limits = 0;
+  }
   info.limits.push_back(limit);
 }
 
@@ -804,6 +808,6 @@ bool PR2ArmIK::checkJointLimits(const double joint_value, const int joint_num) c
     jv = angles::normalize_angle(joint_value * angle_multipliers_[joint_num]);
   }
 
-  return !(jv < min_angles_[joint_num] || jv > max_angles_[joint_num]);
+  return jv >= min_angles_[joint_num] && jv <= max_angles_[joint_num];
 }
 }  // namespace pr2_arm_kinematics

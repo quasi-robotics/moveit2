@@ -32,7 +32,7 @@ namespace
 template <typename T>
 void declareParameterTemplate(const rclcpp::Node::SharedPtr& node, const std::string& name, T default_value)
 {
-  if (not node->has_parameter(name))
+  if (!node->has_parameter(name))
   {
     node->declare_parameter<T>(name, default_value);
   }
@@ -99,7 +99,7 @@ inline bool declareParameters(const std::string& joint_name, const rclcpp::Node:
  *     max_velocity: 4.0
  * \endcode
  *
- * This specification is similar to the one used by <a href="http://moveit.ros.org/wiki/MoveIt!">MoveIt!</a>,
+ * This specification is similar to the one used by <a href="https://moveit.ai/">MoveIt!</a>,
  * but additionally supports jerk and effort limits.
  *
  * \param[in] joint_name Name of joint whose limits are to be fetched.

@@ -36,17 +36,17 @@
 
 #include <gtest/gtest.h>
 
-#include <pilz_industrial_motion_planner/joint_limits_aggregator.h>
-#include <pilz_industrial_motion_planner/trajectory_generator_lin.h>
-#include <pilz_industrial_motion_planner_testutils/command_types_typedef.h>
-#include <pilz_industrial_motion_planner_testutils/xml_testdata_loader.h>
-#include "test_utils.h"
+#include <pilz_industrial_motion_planner/joint_limits_aggregator.hpp>
+#include <pilz_industrial_motion_planner/trajectory_generator_lin.hpp>
+#include <pilz_industrial_motion_planner_testutils/command_types_typedef.hpp>
+#include <pilz_industrial_motion_planner_testutils/xml_testdata_loader.hpp>
+#include "test_utils.hpp"
 
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/robot_model/robot_model.h>
-#include <moveit/robot_model_loader/robot_model_loader.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_model_loader/robot_model_loader.hpp>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -196,11 +196,6 @@ TEST_F(TrajectoryGeneratorLINTest, TestExceptionErrorCodeMapping)
   {
     auto jnm_ex = std::make_shared<JointNumberMismatch>("");
     EXPECT_EQ(jnm_ex->getErrorCode(), moveit_msgs::msg::MoveItErrorCodes::INVALID_GOAL_CONSTRAINTS);
-  }
-
-  {
-    auto ljmiss_ex = std::make_shared<LinJointMissingInStartState>("");
-    EXPECT_EQ(ljmiss_ex->getErrorCode(), moveit_msgs::msg::MoveItErrorCodes::INVALID_ROBOT_STATE);
   }
 
   {
@@ -416,24 +411,6 @@ TEST_F(TrajectoryGeneratorLINTest, IncorrectJointNumber)
 }
 
 /**
- * @brief test invalid motion plan request with incomplete start state and
- * cartesian goal
- */
-TEST_F(TrajectoryGeneratorLINTest, cartGoalIncompleteStartState)
-{
-  // construct motion plan request
-  moveit_msgs::msg::MotionPlanRequest lin_cart_req{ tdp_->getLinCart("lin2").toRequest() };
-  EXPECT_GT(lin_cart_req.start_state.joint_state.name.size(), 1u);
-  lin_cart_req.start_state.joint_state.name.resize(1);
-  lin_cart_req.start_state.joint_state.position.resize(1);  // prevent failing check for equal sizes
-
-  // generate lin trajectory
-  planning_interface::MotionPlanResponse res;
-  lin_->generate(planning_scene_, lin_cart_req, res);
-  EXPECT_EQ(res.error_code.val, moveit_msgs::msg::MoveItErrorCodes::INVALID_ROBOT_STATE);
-}
-
-/**
  * @brief Set a frame id in goal constraint with cartesian goal on both position
  * and orientation constraints
  */
@@ -452,6 +429,59 @@ TEST_F(TrajectoryGeneratorLINTest, cartGoalFrameIdBothConstraints)
 
   // check the resulted trajectory
   EXPECT_TRUE(checkLinResponse(lin_cart_req, res));
+}
+
+/**
+ * @brief Set a proper max cartesian speed and check that trajectory is generated
+ */
+TEST_F(TrajectoryGeneratorLINTest, cartesianSpeedLimitProper)
+{
+  // set max cartesian speed to a positive value
+  moveit_msgs::msg::MotionPlanRequest lin_cart_req{ tdp_->getLinCart("lin2").toRequest() };
+  lin_cart_req.max_cartesian_speed = 0.5;
+  lin_cart_req.cartesian_speed_limited_link = "test_link";
+
+  // generate lin trajectory
+  planning_interface::MotionPlanResponse res;
+  lin_->generate(planning_scene_, lin_cart_req, res);
+  EXPECT_TRUE(res.error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS);
+  EXPECT_TRUE(checkLinResponse(lin_cart_req, res));
+}
+
+/**
+ * @brief Set a cartesian speed limit to less than or equal zero or send request
+ * without setting any speed limit
+ *
+ * Expected Results:
+ *   1. Use the default max_trans_vel from limits container
+ */
+TEST_F(TrajectoryGeneratorLINTest, cartesianSpeedLimitLessEqualZero)
+{
+  // construct motion plan request
+  moveit_msgs::msg::MotionPlanRequest lin_cart_req{ tdp_->getLinCart("lin2").toRequest() };
+  // Case 1: don't set any max cartesian speed (set to zero)
+  // generate lin trajectory
+  planning_interface::MotionPlanResponse res1;
+  lin_->generate(this->planning_scene_, lin_cart_req, res1);
+  EXPECT_TRUE(res1.error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS);
+  EXPECT_TRUE(checkLinResponse(lin_cart_req, res1));
+
+  // Case 2: set max cartesian speed to negative value
+  lin_cart_req.max_cartesian_speed = -1.0;
+
+  // generate lin trajectory
+  planning_interface::MotionPlanResponse res2;
+  lin_->generate(this->planning_scene_, lin_cart_req, res2);
+  EXPECT_TRUE(res2.error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS);
+  EXPECT_TRUE(checkLinResponse(lin_cart_req, res2));
+  // Case 3: set max cartesian speed to zero
+  lin_cart_req.max_cartesian_speed = 0.0;
+
+  // generate lin trajectory
+  planning_interface::MotionPlanResponse res3;
+  lin_->generate(this->planning_scene_, lin_cart_req, res3);
+  EXPECT_TRUE(res3.error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS);
+  EXPECT_TRUE(checkLinResponse(lin_cart_req, res3));
 }
 
 int main(int argc, char** argv)

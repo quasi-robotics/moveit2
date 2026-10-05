@@ -36,13 +36,14 @@
    Desc: Response adapter that checks a path for validity (collision avoidance, feasibility and constraint satisfaction)
 */
 
-#include <moveit/planning_interface/planning_response_adapter.h>
+#include <moveit/planning_interface/planning_response_adapter.hpp>
 #include <class_loader/class_loader.hpp>
 #include <moveit/utils/logger.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
-#include <moveit/collision_detection/collision_tools.h>
+#include <moveit/collision_detection/collision_tools.hpp>
 
-#include <default_response_adapter_parameters.hpp>
+#include <moveit_ros_planning/default_response_adapter_parameters.hpp>
+
 namespace default_planning_response_adapters
 {
 /**
@@ -55,6 +56,8 @@ public:
   ValidateSolution() : logger_(moveit::getLogger("moveit.ros.validate_solution"))
   {
   }
+
+  ~ValidateSolution() override = default;
 
   void initialize(const rclcpp::Node::SharedPtr& node, const std::string& parameter_namespace) override
   {

@@ -34,9 +34,9 @@
 
 /* Author: Ioan Sucan, Jia Pan */
 
-#include <moveit/collision_detection_fcl/collision_common.h>
+#include <moveit/collision_detection_fcl/collision_common.hpp>
 #include <geometric_shapes/shapes.h>
-#include <moveit/collision_detection_fcl/fcl_compat.h>
+#include <moveit/collision_detection_fcl/fcl_compat.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
 #include <moveit/utils/logger.hpp>
@@ -155,11 +155,30 @@ bool collisionCallback(fcl::CollisionObjectd* o1, fcl::CollisionObjectd* o2, voi
       }
     }
   }
+
   // bodies attached to the same link should not collide
+  // If one of the attached objects lists the other in touch links set, then collisions are also allowed
   if (cd1->type == BodyTypes::ROBOT_ATTACHED && cd2->type == BodyTypes::ROBOT_ATTACHED)
   {
     if (cd1->ptr.ab->getAttachedLink() == cd2->ptr.ab->getAttachedLink())
+    {
       always_allow_collision = true;
+    }
+    else
+    {
+      const std::set<std::string>& tl1 = cd1->ptr.ab->getTouchLinks();
+      const std::set<std::string>& tl2 = cd2->ptr.ab->getTouchLinks();
+      if (tl1.find(cd2->getID()) != tl1.end() || tl2.find(cd1->getID()) != tl2.end())
+      {
+        always_allow_collision = true;
+      }
+    }
+    if (always_allow_collision && cdata->req_->verbose)
+    {
+      RCLCPP_DEBUG(getLogger(),
+                   "Attached object '%s' is allowed to touch attached object '%s'. No contacts are computed.",
+                   cd2->getID().c_str(), cd1->getID().c_str());
+    }
   }
 
   // if collisions are always allowed, we are done
@@ -763,7 +782,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
         //        cache_it->second->collision_geometry_data_->getID().c_str());
         return cache_it->second;
       }
-      else if (cache_it->second.unique())
+      else if (cache_it->second.use_count() == 1)
       {
         const_cast<FCLGeometry*>(cache_it->second.get())->updateCollisionGeometryData(data, shape_index, false);
         //          RCLCPP_DEBUG(getLogger(), "Collision data structures for object %s retrieved from
@@ -787,7 +806,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
     auto cache_it = othercache.map_.find(wptr);
     if (cache_it != othercache.map_.end())
     {
-      if (cache_it->second.unique())
+      if (cache_it->second.use_count() == 1)
       {
         // remove from old cache
         FCLGeometryConstPtr obj_cache = cache_it->second;
@@ -820,7 +839,7 @@ FCLGeometryConstPtr createCollisionGeometry(const shapes::ShapeConstPtr& shape, 
       auto cache_it = othercache.map_.find(wptr);
       if (cache_it != othercache.map_.end())
       {
-        if (cache_it->second.unique())
+        if (cache_it->second.use_count() == 1)
         {
           // remove from old cache
           FCLGeometryConstPtr obj_cache = cache_it->second;

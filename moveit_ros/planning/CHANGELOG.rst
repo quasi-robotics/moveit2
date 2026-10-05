@@ -2,6 +2,152 @@
 Changelog for package moveit_ros_planning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+* Give the controller spawners a parameter file (`#3851 <https://github.com/moveit/moveit2/issues/3851>`_)
+* Fix clang-tidy issues
+* Contributors: Nathan Brooks, Robert Haschke
+
+2.15.1 (2026-08-29)
+-------------------
+* Fix CI on Ubuntu 26.04 (`#3818 <https://github.com/moveit/moveit2/issues/3818>`_)
+* Avoid using deprecated FindBoost.cmake module
+* Contributors: Robert Haschke
+
+2.15.0 (2026-08-12)
+-------------------
+* resolute: add explicit <cstdint> / <fstream> includes for GCC 15 (`#3754 <https://github.com/moveit/moveit2/issues/3754>`_)
+* Replace shared_ptr::unique() checks (`#3793 <https://github.com/moveit/moveit2/issues/3793>`_)
+* resolute: complete ament_index_cpp::get_package_share migration on Rolling (`#3705 <https://github.com/moveit/moveit2/issues/3705>`_)
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* CMake: remove boost system (`#3727 <https://github.com/moveit/moveit2/issues/3727>`_)
+* Update deprecated usage of get_package_share without std::filesystem::path (`#3703 <https://github.com/moveit/moveit2/issues/3703>`_)
+* Shutdown only after all tests are run (`#3637 <https://github.com/moveit/moveit2/issues/3637>`_)
+* Replace rclcpp::Rate with rclcpp::WallRate (`#3558 <https://github.com/moveit/moveit2/issues/3558>`_)
+* Fix deprecations in image_common and tf2_ros (`#3567 <https://github.com/moveit/moveit2/issues/3567>`_)
+* Contributors: Cong Liu, Ezra Brooks, Guilhem Saurel, Nathan Brooks, Shivam Maurya, Stephanie Eng, Tobias Fischer
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+* PSM: finish thread on rclcpp::shutdown (`#3484 <https://github.com/moveit/moveit2/issues/3484>`_)
+* Fix seg fault with attached objects during motion execution (`#3466 <https://github.com/moveit/moveit2/issues/3466>`_)
+* Contributors: Marq Rasmussen
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* Make the destructors of the base classes of planning adapters virtual and close move_group gracefully (`#3435 <https://github.com/ros-planning/moveit2/issues/3435>`_)
+* fix: ensure attached objects update during motion execution (`#3327 <https://github.com/ros-planning/moveit2/issues/3327>`_)
+* Planning scene monitor: reliable QoS (`#3400 <https://github.com/ros-planning/moveit2/issues/3400>`_)
+* Ports moveit1 `#3689 <https://github.com/ros-planning/moveit/issues/3689>`_ (`#3357 <https://github.com/ros-planning/moveit2/issues/3357>`_)
+  * Publish planning scene while planning (`#3689 <https://github.com/ros-planning/moveit/issues/3689>`_)
+* fix: explicitly add the same namespace as the parent node (`#3360 <https://github.com/ros-planning/moveit2/issues/3360>`_)
+* Contributors: Aleksey Nogin, Cihat Kurtuluş Altıparmak, Kazuya Oguma, Marco Magri, Mark Johnson
+
+2.13.0 (2025-02-15)
+-------------------
+* Enable allowed_execution_duration_scaling and allowed_goal_duration_margin for each controller (`#3335 <https://github.com/ros-planning/moveit2/issues/3335>`_)
+* Add allowed_start_tolerance_joints parameter (Port moveit`#3287 <https://github.com/ros-planning/moveit2/issues/3287>`_) (`#3309 <https://github.com/ros-planning/moveit2/issues/3309>`_)
+* load robot_description from other namespace (`#3269 <https://github.com/ros-planning/moveit2/issues/3269>`_)
+* Ports moveit `#3676 <https://github.com/ros-planning/moveit2/issues/3676>`_ and `#3682 <https://github.com/ros-planning/moveit2/issues/3682>`_ (`#3283 <https://github.com/ros-planning/moveit2/issues/3283>`_)
+* Update includes for generate_parameter_library 0.4.0 (`#3255 <https://github.com/ros-planning/moveit2/issues/3255>`_)
+* [moveit_ros] fix race condition when stopping trajectory execution (`#3198 <https://github.com/ros-planning/moveit2/issues/3198>`_)
+* move TrajectoryExecutionManager::clear() to private (`#3226 <https://github.com/ros-planning/moveit2/issues/3226>`_)
+* Don't destroy objects on attach (`#3205 <https://github.com/ros-planning/moveit2/issues/3205>`_)
+* Simplify scene update that does not include new robot_state (`#3206 <https://github.com/ros-planning/moveit2/issues/3206>`_)
+* Fix planning_scene_monitor sync when passed empty robot state (`#3187 <https://github.com/ros-planning/moveit2/issues/3187>`_)
+* Update deprecated tf2 imports from .h to .hpp (`#3197 <https://github.com/ros-planning/moveit2/issues/3197>`_)
+* Fix logic in CheckStartStateBounds adapter (`#3143 <https://github.com/ros-planning/moveit2/issues/3143>`_)
+* Contributors: Daniel García López, Dongya Jiang, Mark Johnson, Marq Rasmussen, Michael Görner, RLi43, Robert Haschke, Sebastian Castro
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Re-enable flaky PSM test (`#3124 <https://github.com/ros-planning/moveit2/issues/3124>`_)
+* Add use_padding flag + deprecate checkCollisionUnpadded() functions (`#3088 <https://github.com/ros-planning/moveit2/issues/3088>`_)
+* Remove plugins from export set (`#3024 <https://github.com/ros-planning/moveit2/issues/3024>`_)
+* Update urdf/model.h -> urdf/model.hpp (`#3003 <https://github.com/ros-planning/moveit2/issues/3003>`_)
+* Contributors: Paul Gesel, Robert Haschke, Sebastian Castro, Sebastian Jahr, Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* Apply clang-tidy fixes
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Enable mdof trajectory execution (`#2740 <https://github.com/moveit/moveit2/issues/2740>`_)
+  * Add RobotTrajectory conversion from MDOF to joints
+  * Convert MDOF trajectories to joint trajectories in planning interfaces
+  * Treat mdof joint variables as common joints in
+  TrajectoryExecutionManager
+  * Convert multi-DOF trajectories to joints in TEM
+  * Revert "Convert MDOF trajectories to joint trajectories in planning interfaces"
+  This reverts commit 885ee2718594859555b73dc341311a859d31216e.
+  * Handle multi-DOF variables in TEM's bound checking
+  * Add parameter to optionally enable multi-dof conversion
+  * Improve error message about unknown controllers
+  * Fix name ordering in JointTrajectory conversion
+  * Improve DEBUG output in TEM
+  * Comment RobotTrajectory test
+  * add acceleration to avoid out of bounds read
+  ---------
+  Co-authored-by: Paul Gesel <paulgesel@gmail.com>
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+  Co-authored-by: Ezra Brooks <ezra@brooks.cx>
+* Skip flaky PSM launch test (`#2822 <https://github.com/moveit/moveit2/issues/2822>`_)
+* change default to 1e308 (`#2801 <https://github.com/moveit/moveit2/issues/2801>`_)
+* PSM: keep references to scene\_ valid upon receiving full scenes (`#2745 <https://github.com/moveit/moveit2/issues/2745>`_)
+  plan_execution-related modules rely on `plan.planning_scene\_` in many places
+  to point to the currently monitored scene (or a diff on top of it).
+  Before this patch, if the PSM would receive full scenes during execution,
+  `plan.planning_scene\_` would not include later incremental updates anymore
+  because the monitor created a new diff scene.
+  ---------
+  Co-authored-by: v4hn <me@v4hn.de>
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* Print links in collision (`#2727 <https://github.com/moveit/moveit2/issues/2727>`_)
+* Do not overwrite the error code in planWithSinglePipeline (`#2723 <https://github.com/moveit/moveit2/issues/2723>`_)
+  * Do not overwrite the error code in planWithSinglePipeline
+  Return the `MotionPlanResponse` as-is.
+  * Do not rely on generatePlan() to set error code
+  Do not rely on generatePlan() to set the error code in all cases and
+  ensure that the error code is set to FAILURE if `generatePlan()` returns
+  false.
+  ---------
+  Co-authored-by: Gaël Écorchard <gael@km-robotics.cz>
+* Get configuration values of traj_exec_man (`#2702 <https://github.com/moveit/moveit2/issues/2702>`_)
+  * (ros_planning) get configuration values of traj_exec_man
+  * (py) get configuration values of traj_exec_man
+  ---------
+  Co-authored-by: Sebastian Jahr <sebastian.jahr@picknik.ai>
+* Exit earlier on failure in `generatePlan` (`#2726 <https://github.com/moveit/moveit2/issues/2726>`_)
+  With this change, the `PlanningPipeline::generatePlan()` exits as soon
+  as a failure is detected. Before this, `break` was used to exit the
+  current loop of request adapters, planners, or response adapters, but
+  the function continued to the next loop. For example, if a planner would
+  fail, the response adapters would still be executed.
+  Co-authored-by: Gaël Écorchard <gael@km-robotics.cz>
+* srdf publisher node (`#2682 <https://github.com/moveit/moveit2/issues/2682>`_)
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Get robot description from topic in GetUrdfService (`#2681 <https://github.com/moveit/moveit2/issues/2681>`_)
+* Shut down PSM publishing before starting to publish on a potentially new topic (`#2680 <https://github.com/moveit/moveit2/issues/2680>`_)
+* Contributors: Abishalini Sivaraman, Ezra Brooks, Gaël Écorchard, Henning Kayser, Matthijs van der Burgh, Paul Gesel, Robert Haschke, Sebastian Castro, Sebastian Jahr, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * [PSM] Process collision object color when adding object trough the planning scene monitor (`#2567 <https://github.com/ros-planning/moveit2/issues/2567>`_)

@@ -37,13 +37,13 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 
-#include <moveit/rviz_plugin_render_tools/trajectory_visualization.h>
+#include <moveit/rviz_plugin_render_tools/trajectory_visualization.hpp>
 
-#include <moveit/rviz_plugin_render_tools/planning_link_updater.h>
-#include <moveit/rviz_plugin_render_tools/robot_state_visualization.h>
+#include <moveit/rviz_plugin_render_tools/planning_link_updater.hpp>
+#include <moveit/rviz_plugin_render_tools/robot_state_visualization.hpp>
 #include <rviz_default_plugins/robot/robot.hpp>
 #include <moveit/utils/logger.hpp>
-#include <moveit/trajectory_processing/trajectory_tools.h>
+#include <moveit/trajectory_processing/trajectory_tools.hpp>
 #include <rviz_common/display_context.hpp>
 #include <rviz_common/properties/bool_property.hpp>
 #include <rviz_common/properties/color_property.hpp>
@@ -55,7 +55,11 @@
 #include <rviz_common/properties/string_property.hpp>
 #include <rviz_default_plugins/robot/robot_link.hpp>
 #include <rviz_common/window_manager_interface.hpp>
+#include <rviz_common/logging.hpp>
 
+#include <rclcpp/qos.hpp>
+
+#include <cmath>
 #include <string>
 
 using namespace std::placeholders;
@@ -184,7 +188,7 @@ void TrajectoryVisualization::onInitialize(const rclcpp::Node::SharedPtr& node, 
   }
 
   trajectory_topic_sub_ = node_->create_subscription<moveit_msgs::msg::DisplayTrajectory>(
-      trajectory_topic_property_->getStdString(), rclcpp::SystemDefaultsQoS(),
+      trajectory_topic_property_->getStdString(), rclcpp::ServicesQoS(),
       [this](const moveit_msgs::msg::DisplayTrajectory::ConstSharedPtr& msg) { return incomingDisplayTrajectory(msg); });
 }
 
@@ -271,6 +275,7 @@ void TrajectoryVisualization::changedShowTrail()
     if (enable_robot_color_property_->getBool())
       setRobotColor(&(r->getRobot()), robot_color_property_->getColor());
     r->setVisible(display_->isEnabled() && (!animating_path_ || waypoint_i <= current_state_));
+    r->updateAttachedObjectColors(default_attached_object_color_);
     trajectory_trail_[i] = std::move(r);
   }
 }
@@ -294,7 +299,7 @@ void TrajectoryVisualization::changedTrajectoryTopic()
   if (!trajectory_topic_property_->getStdString().empty() && robot_state_)
   {
     trajectory_topic_sub_ = node_->create_subscription<moveit_msgs::msg::DisplayTrajectory>(
-        trajectory_topic_property_->getStdString(), rclcpp::SystemDefaultsQoS(),
+        trajectory_topic_property_->getStdString(), rclcpp::ServicesQoS(),
         [this](const moveit_msgs::msg::DisplayTrajectory::ConstSharedPtr& msg) {
           return incomingDisplayTrajectory(msg);
         });
@@ -416,7 +421,7 @@ void TrajectoryVisualization::dropTrajectory()
   drop_displaying_trajectory_ = true;
 }
 
-void TrajectoryVisualization::update(double wall_dt, double sim_dt)
+void TrajectoryVisualization::update(std::chrono::nanoseconds wall_dt, std::chrono::nanoseconds sim_dt)
 {
   if (drop_displaying_trajectory_)
   {
@@ -472,11 +477,11 @@ void TrajectoryVisualization::update(double wall_dt, double sim_dt)
     int waypoint_count = displaying_trajectory_message_->getWayPointCount();
     if (use_sim_time_property_->getBool())
     {
-      current_state_time_ += sim_dt;
+      current_state_time_ += std::chrono::duration_cast<std::chrono::duration<double>>(sim_dt).count();
     }
     else
     {
-      current_state_time_ += wall_dt;
+      current_state_time_ += std::chrono::duration_cast<std::chrono::duration<double>>(wall_dt).count();
     }
     double tm = getStateDisplayTime();
 
@@ -543,6 +548,12 @@ void TrajectoryVisualization::update(double wall_dt, double sim_dt)
   display_path_robot_->setVisible(display_->isEnabled() && displaying_trajectory_message_ &&
                                   (animating_path_ || trail_display_property_->getBool() ||
                                    (trajectory_slider_panel_ && trajectory_slider_panel_->isVisible())));
+  display_path_robot_->updateAttachedObjectColors(default_attached_object_color_);
+}
+
+void TrajectoryVisualization::update(double wall_dt, double sim_dt)
+{
+  update(std::chrono::nanoseconds(std::lround(wall_dt)), std::chrono::nanoseconds(std::lround(sim_dt)));
 }
 
 void TrajectoryVisualization::incomingDisplayTrajectory(const moveit_msgs::msg::DisplayTrajectory::ConstSharedPtr& msg)

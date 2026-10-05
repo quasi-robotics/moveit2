@@ -32,13 +32,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <moveit/local_planner/local_planner_component.h>
-#include <local_planner_parameters.hpp>
+#include <moveit/local_planner/local_planner_component.hpp>
+#include <moveit_hybrid_planning/local_planner_parameters.hpp>
 
-#include <moveit/planning_scene/planning_scene.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/planning_scene/planning_scene.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 
-#include <moveit/robot_state/conversions.h>
+#include <moveit/robot_state/conversions.hpp>
 
 #include <moveit_msgs/msg/constraints.hpp>
 
@@ -318,7 +318,7 @@ void LocalPlannerComponent::executeIteration()
       }
 
       // Use a configurable message interface like MoveIt servo
-      // (See https://github.com/ros-planning/moveit2/blob/main/moveit_ros/moveit_servo/src/servo_calcs.cpp)
+      // (See https://github.com/moveit/moveit2/blob/main/moveit_ros/moveit_servo/src/servo_calcs.cpp)
       // Format outgoing msg in the right format
       // (trajectory_msgs/JointTrajectory or joint positions/velocities in form of std_msgs/Float64MultiArray).
       if (config_->local_solution_topic_type == "trajectory_msgs/JointTrajectory")

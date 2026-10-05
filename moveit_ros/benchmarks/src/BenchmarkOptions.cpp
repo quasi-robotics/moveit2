@@ -34,7 +34,7 @@
 
 /* Author: Ryan Luna */
 
-#include <moveit/benchmarks/BenchmarkOptions.h>
+#include <moveit/benchmarks/BenchmarkOptions.hpp>
 #include <moveit/utils/logger.hpp>
 
 using moveit::getLogger;
@@ -256,6 +256,7 @@ bool BenchmarkOptions::readPlannerConfigs(const rclcpp::Node::SharedPtr& node)
       }
 
       std::vector<std::pair<std::string, std::string>> pipeline_planner_id_pairs;
+      pipeline_planner_id_pairs.reserve(pipelines.size());
       for (size_t i = 0; i < pipelines.size(); ++i)
       {
         pipeline_planner_id_pairs.push_back(std::pair<std::string, std::string>(pipelines.at(i), planner_ids.at(i)));

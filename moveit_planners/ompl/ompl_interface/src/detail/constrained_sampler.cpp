@@ -34,8 +34,8 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/ompl_interface/detail/constrained_sampler.h>
-#include <moveit/ompl_interface/model_based_planning_context.h>
+#include <moveit/ompl_interface/detail/constrained_sampler.hpp>
+#include <moveit/ompl_interface/model_based_planning_context.hpp>
 
 #include <utility>
 
@@ -99,7 +99,9 @@ void ompl_interface::ConstrainedSampler::sampleUniformNear(ob::State* state, con
     }
   }
   else
+  {
     default_->sampleUniformNear(state, near, distance);
+  }
 }
 
 void ompl_interface::ConstrainedSampler::sampleGaussian(ob::State* state, const ob::State* mean, const double stdDev)
@@ -115,5 +117,7 @@ void ompl_interface::ConstrainedSampler::sampleGaussian(ob::State* state, const 
     }
   }
   else
+  {
     default_->sampleGaussian(state, mean, stdDev);
+  }
 }

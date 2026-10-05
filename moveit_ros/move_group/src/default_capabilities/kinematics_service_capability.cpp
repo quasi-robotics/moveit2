@@ -34,12 +34,12 @@
 
 /* Author: Ioan Sucan */
 
-#include "kinematics_service_capability.h"
-#include <moveit/moveit_cpp/moveit_cpp.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/utils/message_checks.h>
+#include "kinematics_service_capability.hpp"
+#include <moveit/moveit_cpp/moveit_cpp.hpp>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit/utils/message_checks.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
-#include <moveit/move_group/capability_names.h>
+#include <moveit/move_group/capability_names.hpp>
 #include <moveit/utils/logger.hpp>
 
 namespace move_group
@@ -119,10 +119,14 @@ void MoveGroupKinematicsService::computeIK(moveit_msgs::msg::PositionIKRequest& 
           error_code.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
         }
         else
+        {
           error_code.val = moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION;
+        }
       }
       else
+      {
         error_code.val = moveit_msgs::msg::MoveItErrorCodes::FRAME_TRANSFORM_FAILURE;
+      }
     }
     else
     {
@@ -156,13 +160,17 @@ void MoveGroupKinematicsService::computeIK(moveit_msgs::msg::PositionIKRequest& 
             error_code.val = moveit_msgs::msg::MoveItErrorCodes::SUCCESS;
           }
           else
+          {
             error_code.val = moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION;
+          }
         }
       }
     }
   }
   else
+  {
     error_code.val = moveit_msgs::msg::MoveItErrorCodes::INVALID_GROUP_NAME;
+  }
 }
 
 bool MoveGroupKinematicsService::computeIKService(const std::shared_ptr<rmw_request_id_t>& /* unused */,
@@ -223,10 +231,10 @@ bool MoveGroupKinematicsService::computeFKService(const std::shared_ptr<rmw_requ
   moveit::core::robotStateMsgToRobotState(req->robot_state, rs);
   for (std::size_t i = 0; i < req->fk_link_names.size(); ++i)
   {
-    if (rs.getRobotModel()->hasLinkModel(req->fk_link_names[i]))
+    if (rs.knowsFrameTransform(req->fk_link_names[i]))
     {
       res->pose_stamped.resize(res->pose_stamped.size() + 1);
-      res->pose_stamped.back().pose = tf2::toMsg(rs.getGlobalLinkTransform(req->fk_link_names[i]));
+      res->pose_stamped.back().pose = tf2::toMsg(rs.getFrameTransform(req->fk_link_names[i]));
       res->pose_stamped.back().header.frame_id = default_frame;
       res->pose_stamped.back().header.stamp = context_->moveit_cpp_->getNode()->get_clock()->now();
       if (do_transform)

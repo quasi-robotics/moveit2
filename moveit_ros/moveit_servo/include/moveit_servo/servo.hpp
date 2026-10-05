@@ -41,19 +41,27 @@
 
 #pragma once
 
-#include <moveit_servo_lib_parameters.hpp>
+#include <rclcpp/logger.hpp>
+#include <rclcpp/version.h>
+
 #include <moveit_servo/collision_monitor.hpp>
+#include <moveit_servo/moveit_servo_lib_parameters.hpp>
 #include <moveit_servo/utils/command.hpp>
 #include <moveit_servo/utils/datatypes.hpp>
-#include <moveit/kinematics_base/kinematics_base.h>
-#include <moveit/online_signal_smoothing/smoothing_base_class.h>
-#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
+#include <moveit/kinematics_base/kinematics_base.hpp>
+#include <moveit/online_signal_smoothing/smoothing_base_class.hpp>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.hpp>
 #include <pluginlib/class_loader.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
+// For Rolling, Kilted, and newer
+#if RCLCPP_VERSION_GTE(29, 6, 0)
+#include <tf2_ros/transform_listener.hpp>
+// For Jazzy and older
+#else
 #include <tf2_ros/transform_listener.h>
+#endif
 #include <variant>
-#include <rclcpp/logger.hpp>
 #include <queue>
 
 namespace moveit_servo
@@ -113,19 +121,23 @@ public:
 
   /**
    * \brief Returns the most recent servo parameters.
+   * @return The servo parameters.
    */
   servo::Params& getParams();
 
   /**
    * \brief Get the current state of the robot as given by planning scene monitor.
+   * This may block if a current robot state is not available immediately.
+   * @param block_for_current_state If true, we explicitly wait for a new robot state
    * @return The current state of the robot.
    */
-  KinematicState getCurrentRobotState() const;
+  KinematicState getCurrentRobotState(bool block_for_current_state) const;
 
   /**
    * \brief Smoothly halt at a commanded state when command goes stale.
-   * @param halt_state The desired stop state.
-   * @return The next state stepping towards the required halting state.
+   * @param halt_state The desired halting state.
+   * @return A pair where the first element is a Boolean indicating whether the robot has stopped, and the second is a
+   * state stepping towards the desired halting state.
    */
   std::pair<bool, KinematicState> smoothHalt(const KinematicState& halt_state);
 
@@ -187,7 +199,7 @@ private:
    * @param servo_params The servo parameters
    * @return True if parameters are valid, else False
    */
-  bool validateParams(const servo::Params& servo_params) const;
+  bool validateParams(const servo::Params& servo_params);
 
   /**
    * \brief Updates the servo parameters and performs validations.
@@ -206,7 +218,7 @@ private:
    * @param target_state The target kinematic state.
    * @return The bounded kinematic state.
    */
-  KinematicState haltJoints(const std::vector<int>& joints_to_halt, const KinematicState& current_state,
+  KinematicState haltJoints(const std::vector<size_t>& joints_to_halt, const KinematicState& current_state,
                             const KinematicState& target_state) const;
 
   // Variables
@@ -225,11 +237,17 @@ private:
   std::atomic<double> collision_velocity_scale_ = 1.0;
   std::unique_ptr<CollisionMonitor> collision_monitor_;
 
+  // Plugin loader
+  std::unique_ptr<pluginlib::ClassLoader<online_signal_smoothing::SmoothingBaseClass>> smoother_loader_;
+
   // Pointer to the (optional) smoothing plugin.
   pluginlib::UniquePtr<online_signal_smoothing::SmoothingBaseClass> smoother_ = nullptr;
 
   // Map between joint subgroup names and corresponding joint name - move group indices map
   std::unordered_map<std::string, JointNameToMoveGroupIndexMap> joint_name_to_index_maps_;
+
+  // The current joint limit safety margins for each active joint position variable.
+  std::vector<double> joint_limit_margins_;
 };
 
 }  // namespace moveit_servo

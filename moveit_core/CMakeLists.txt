@@ -13,17 +13,20 @@ find_package(eigen_stl_containers REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(fcl REQUIRED)
+find_package(fmt REQUIRED)
 find_package(generate_parameter_library REQUIRED)
 find_package(geometric_shapes REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(kdl_parser REQUIRED)
 find_package(moveit_msgs REQUIRED)
-find_package(OCTOMAP REQUIRED)
+find_package(octomap REQUIRED)
 find_package(octomap_msgs REQUIRED)
+find_package(orocos_kdl REQUIRED)
 find_package(osqp REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(random_numbers REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rmw_implementation REQUIRED)
 find_package(rsl REQUIRED)
 find_package(ruckig REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -66,13 +69,36 @@ add_subdirectory(transforms)
 add_subdirectory(utils)
 add_subdirectory(version)
 
+# Create an umbrella INTERFACE target so downstream packages can use
+# moveit_core::moveit_core to link all moveit_core libraries at once.
+add_library(moveit_core INTERFACE)
+target_link_libraries(
+  moveit_core
+  INTERFACE moveit_collision_detection
+            moveit_collision_detection_bullet
+            moveit_collision_detection_fcl
+            moveit_collision_distance_field
+            moveit_constraint_samplers
+            moveit_distance_field
+            moveit_dynamics_solver
+            moveit_exceptions
+            moveit_kinematic_constraints
+            moveit_kinematics_base
+            moveit_kinematics_metrics
+            moveit_macros
+            moveit_planning_interface
+            moveit_planning_scene
+            moveit_robot_model
+            moveit_robot_state
+            moveit_robot_trajectory
+            moveit_smoothing_base
+            moveit_test_utils
+            moveit_trajectory_processing
+            moveit_transforms
+            moveit_utils)
+
 install(
-  TARGETS collision_detector_bullet_plugin
-          collision_detector_fcl_plugin
-          moveit_acceleration_filter
-          moveit_acceleration_filter_parameters
-          moveit_butterworth_filter
-          moveit_butterworth_filter_parameters
+  TARGETS moveit_core
           moveit_collision_detection
           moveit_collision_detection_bullet
           moveit_collision_detection_fcl
@@ -100,6 +126,20 @@ install(
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin)
 
+install(
+  TARGETS collision_detector_bullet_plugin
+          collision_detector_fcl_plugin
+          moveit_acceleration_filter
+          moveit_acceleration_filter_parameters
+          moveit_butterworth_filter
+          moveit_butterworth_filter_parameters
+          moveit_ruckig_filter
+          moveit_ruckig_filter_parameters
+  EXPORT moveit_core_pluginTargets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin)
+
 ament_export_targets(moveit_coreTargets HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   angles
@@ -109,17 +149,20 @@ ament_export_dependencies(
   Eigen3
   eigen3_cmake_module
   fcl
+  fmt
   generate_parameter_library
   geometric_shapes
   geometry_msgs
   kdl_parser
   moveit_msgs
-  OCTOMAP
+  octomap
   octomap_msgs
+  orocos_kdl
   osqp
   pluginlib
   random_numbers
   rclcpp
+  rmw_implementation
   rsl
   ruckig
   sensor_msgs
@@ -141,8 +184,9 @@ pluginlib_export_plugin_description_file(moveit_core
 pluginlib_export_plugin_description_file(
   moveit_core collision_detector_bullet_description.xml)
 pluginlib_export_plugin_description_file(moveit_core
-                                         filter_plugin_butterworth.xml)
-pluginlib_export_plugin_description_file(moveit_core
                                          filter_plugin_acceleration.xml)
+pluginlib_export_plugin_description_file(moveit_core
+                                         filter_plugin_butterworth.xml)
+pluginlib_export_plugin_description_file(moveit_core filter_plugin_ruckig.xml)
 
 ament_package(CONFIG_EXTRAS ConfigExtras.cmake)

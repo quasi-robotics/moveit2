@@ -35,7 +35,7 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/robot_model/revolute_joint_model.h>
+#include <moveit/robot_model/revolute_joint_model.hpp>
 #include <geometric_shapes/check_isometry.h>
 #include <algorithm>
 #include <cmath>
@@ -91,7 +91,9 @@ void RevoluteJointModel::setContinuous(bool flag)
     variable_bounds_[0].max_position_ = M_PI;
   }
   else
+  {
     variable_bounds_[0].position_bounded_ = true;
+  }
   computeVariableBoundsMsg();
 }
 
@@ -167,7 +169,9 @@ void RevoluteJointModel::interpolate(const double* from, const double* to, const
     }
   }
   else
+  {
     state[0] = from[0] + (to[0] - from[0]) * t;
+  }
 }
 
 double RevoluteJointModel::distance(const double* values1, const double* values2) const
@@ -178,7 +182,9 @@ double RevoluteJointModel::distance(const double* values1, const double* values2
     return (d > M_PI) ? 2.0 * M_PI - d : d;
   }
   else
+  {
     return fabs(values1[0] - values2[0]);
+  }
 }
 
 bool RevoluteJointModel::satisfiesPositionBounds(const double* values, const Bounds& bounds, double margin) const
@@ -189,7 +195,7 @@ bool RevoluteJointModel::satisfiesPositionBounds(const double* values, const Bou
   }
   else
   {
-    return !(values[0] < bounds[0].min_position_ - margin || values[0] > bounds[0].max_position_ + margin);
+    return values[0] >= bounds[0].min_position_ - margin && values[0] <= bounds[0].max_position_ + margin;
   }
 }
 

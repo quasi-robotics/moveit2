@@ -1,5 +1,6 @@
 import os
 import launch
+from launch.event_handlers import OnProcessExit
 import unittest
 import launch_ros
 import launch_testing
@@ -29,8 +30,9 @@ def generate_test_description():
         .to_dict()
     }
 
-    # This filter parameter should be >1. Increase it for greater smoothing but slower motion.
-    low_pass_filter_coeff = {"butterworth_filter_coeff": 1.5}
+    # This sets the update rate and planning group name for the acceleration limiting filter.
+    acceleration_filter_update_period = {"update_period": 0.01}
+    planning_group_name = {"planning_group_name": "panda_arm"}
 
     # ros2_control using FakeSystem as hardware
     ros2_controllers_path = os.path.join(
@@ -57,6 +59,8 @@ def generate_test_description():
             "300",
             "--controller-manager",
             "/controller_manager",
+            "--param-file",
+            ros2_controllers_path,
         ],
         output="screen",
     )
@@ -64,7 +68,13 @@ def generate_test_description():
     panda_arm_controller_spawner = launch_ros.actions.Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["panda_arm_controller", "-c", "/controller_manager"],
+        arguments=[
+            "panda_arm_controller",
+            "-c",
+            "/controller_manager",
+            "--param-file",
+            ros2_controllers_path,
+        ],
     )
 
     # Launch as much as possible in components
@@ -82,7 +92,8 @@ def generate_test_description():
                 name="servo_node",
                 parameters=[
                     servo_params,
-                    low_pass_filter_coeff,
+                    acceleration_filter_update_period,
+                    planning_group_name,
                     moveit_config.robot_description,
                     moveit_config.robot_description_semantic,
                     moveit_config.robot_description_kinematics,
@@ -112,7 +123,8 @@ def generate_test_description():
         name="servo_node",
         parameters=[
             servo_params,
-            low_pass_filter_coeff,
+            acceleration_filter_update_period,
+            planning_group_name,
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
             moveit_config.robot_description_kinematics,
@@ -142,7 +154,15 @@ def generate_test_description():
             launch.actions.TimerAction(
                 period=7.0, actions=[panda_arm_controller_spawner]
             ),
-            launch.actions.TimerAction(period=9.0, actions=[servo_gtest]),
+            # Gate the gtest launch on the last-in-chain spawner completing so the
+            # test does not race controller activation. Prior fixed 9s timer flaked
+            # under load (ServoRosFixture.testJointJog).
+            launch.actions.RegisterEventHandler(
+                OnProcessExit(
+                    target_action=panda_arm_controller_spawner,
+                    on_exit=[servo_gtest],
+                )
+            ),
             launch_testing.actions.ReadyToTest(),
         ]
     ), {

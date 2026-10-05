@@ -10,16 +10,16 @@ if("${MOVEIT_GIT_NAME}" STREQUAL "HEAD")
   execute_process(
     COMMAND git describe --contains --all HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE MOVEIT_GIT_NAME OUTPUT_STRIP_TRAILING_WHITESPACE
-                    ERROR_QUIET)
+    OUTPUT_VARIABLE MOVEIT_GIT_NAME
+    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 endif()
 
 # Retrieve (short) commit hash
 execute_process(
   COMMAND git rev-parse --short HEAD
   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE MOVEIT_GIT_COMMIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE
-                  ERROR_QUIET)
+  OUTPUT_VARIABLE MOVEIT_GIT_COMMIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 
 string(REGEX REPLACE "^([0-9]+)\\..*" "\\1" MOVEIT_VERSION_MAJOR
                      "${moveit_core_VERSION}")
@@ -34,5 +34,5 @@ if(NOT "${MOVEIT_VERSION_EXTRA}" STREQUAL "")
   string(APPEND MOVEIT_VERSION "-${MOVEIT_VERSION_EXTRA}")
 endif()
 
-configure_file("version.h.in"
-               "${VERSION_FILE_PATH}/moveit_core/moveit/version.h")
+configure_file("version.hpp.in"
+               "${VERSION_FILE_PATH}/moveit_core/moveit/version.hpp")

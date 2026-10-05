@@ -48,6 +48,12 @@
     </description>
   </class>
 
+  <class name="move_group/MoveGroupMultiStateValidationService" type="move_group::MoveGroupMultiStateValidationService" base_class_type="move_group::MoveGroupCapability">
+    <description>
+      Provide a ROS service that allows for testing multiple joint states validity
+    </description>
+  </class>
+
   <class name="move_group/MoveGroupGetPlanningSceneService" type="move_group::MoveGroupGetPlanningSceneService" base_class_type="move_group::MoveGroupCapability">
     <description>
       Provide a ROS service that allows for querying the planning scene
@@ -75,6 +81,18 @@
   <class name="move_group/GetUrdfService" type="move_group::GetUrdfService" base_class_type="move_group::MoveGroupCapability">
     <description>
       Provide a capability which creates an URDF string with joints and links of a requested joint model group
+    </description>
+  </class>
+
+  <class name="move_group/SaveGeometryToFileService" type="move_group::SaveGeometryToFileService" base_class_type="move_group::MoveGroupCapability">
+    <description>
+      Provide a capability which saves the CollisionObjects in the PlanningScene to a .scene file
+    </description>
+  </class>
+
+  <class name="move_group/LoadGeometryFromFileService" type="move_group::LoadGeometryFromFileService" base_class_type="move_group::MoveGroupCapability">
+    <description>
+      Provide a capability which loads CollisionObjects into the PlanningScene from a .scene file
     </description>
   </class>
 

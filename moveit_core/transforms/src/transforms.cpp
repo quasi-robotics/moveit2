@@ -34,7 +34,7 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/transforms/transforms.h>
+#include <moveit/transforms/transforms.hpp>
 #include <geometric_shapes/check_isometry.h>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -145,7 +145,9 @@ void Transforms::setTransform(const Eigen::Isometry3d& t, const std::string& fro
     RCLCPP_ERROR(getLogger(), "Cannot record transform with empty name");
   }
   else
+  {
     transforms_map_[from_frame] = t;
+  }
 }
 
 void Transforms::setTransform(const geometry_msgs::msg::TransformStamped& transform)

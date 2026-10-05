@@ -34,19 +34,22 @@
 
 /* Author: Ioan Sucan */
 
+#include <cstdint>
 #include <gtest/gtest.h>
-#include <moveit/collision_detection_fcl/collision_detector_allocator_fcl.h>
-#include <moveit/planning_scene/planning_scene.h>
-#include <moveit/utils/message_checks.h>
-#include <moveit/utils/robot_model_test_utils.h>
+#include <moveit/collision_detection_fcl/collision_detector_allocator_fcl.hpp>
+#include <moveit/planning_scene/planning_scene.hpp>
+#include <moveit/utils/message_checks.hpp>
+#include <moveit/utils/robot_model_test_utils.hpp>
 #include <urdf_parser/urdf_parser.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <octomap_msgs/conversions.h>
+#include <octomap/octomap.h>
 
-#include <moveit/collision_detection/collision_common.h>
-#include <moveit/collision_detection/collision_plugin_cache.h>
+#include <moveit/collision_detection/collision_common.hpp>
+#include <moveit/collision_detection/collision_plugin_cache.hpp>
 
 // Test not setting the object's pose should use the shape pose as the object pose
 TEST(PlanningScene, TestOneShapeObjectPose)
@@ -87,6 +90,59 @@ TEST(PlanningScene, LoadRestore)
   ps.setPlanningSceneMsg(ps_msg);
   EXPECT_EQ(ps.getName(), ps_msg.name);
   EXPECT_EQ(ps.getRobotModel()->getName(), ps_msg.robot_model_name);
+}
+
+TEST(PlanningScene, LoadOctomap)
+{
+  urdf::ModelInterfaceSharedPtr urdf_model = moveit::core::loadModelInterface("pr2");
+  srdf::ModelSharedPtr srdf_model(new srdf::Model());
+  planning_scene::PlanningScene ps(urdf_model, srdf_model);
+
+  {  // check octomap before doing any operations on it
+    octomap_msgs::msg::OctomapWithPose msg;
+    ps.getOctomapMsg(msg);
+    EXPECT_TRUE(msg.octomap.id.empty());
+    EXPECT_TRUE(msg.octomap.data.empty());
+  }
+
+  {  // fill PlanningScene's octomap
+    octomap::OcTree octomap(0.1);
+    octomap::point3d origin(0, 0, 0);
+    octomap::point3d end(0, 1, 2);
+    octomap.insertRay(origin, end);
+
+    // populate PlanningScene with octomap
+    moveit_msgs::msg::PlanningScene msg;
+    msg.is_diff = true;
+    octomap_msgs::fullMapToMsg(octomap, msg.world.octomap.octomap);
+    ps.setPlanningSceneDiffMsg(msg);
+
+    // validate octomap message
+    octomap_msgs::msg::OctomapWithPose octomap_msg;
+    ps.getOctomapMsg(octomap_msg);
+    EXPECT_EQ(octomap_msg.octomap.id, "OcTree");
+    EXPECT_EQ(octomap_msg.octomap.data.size(), msg.world.octomap.octomap.data.size());
+  }
+
+  {  // verify that a PlanningScene msg with an empty octomap id does not modify the octomap
+    // create planning scene
+    moveit_msgs::msg::PlanningScene msg;
+    msg.is_diff = true;
+    ps.setPlanningSceneDiffMsg(msg);
+
+    octomap_msgs::msg::OctomapWithPose octomap_msg;
+    ps.getOctomapMsg(octomap_msg);
+    EXPECT_EQ(octomap_msg.octomap.id, "OcTree");
+    EXPECT_FALSE(octomap_msg.octomap.data.empty());
+  }
+
+  {  // check that a non-empty octomap id, but empty octomap will clear the octomap
+    moveit_msgs::msg::PlanningScene msg;
+    msg.is_diff = true;
+    msg.world.octomap.octomap.id = "xxx";
+    ps.setPlanningSceneDiffMsg(msg);
+    EXPECT_FALSE(static_cast<bool>(ps.getWorld()->getObject(planning_scene::PlanningScene::OCTOMAP_NS)));
+  }
 }
 
 TEST(PlanningScene, LoadRestoreDiff)
@@ -533,6 +589,80 @@ TEST(PlanningScene, RobotStateDiffBug)
     EXPECT_TRUE(getCollisionObjectsNames(*ps).empty());
     EXPECT_EQ(getAttachedCollisionObjectsNames(*ps), (std::set<std::string>{ "object1" }));
   }
+}
+
+TEST(PlanningScene, UpdateACMAfterObjectRemoval)
+{
+  auto robot_model = moveit::core::loadTestingRobotModel("panda");
+  auto ps = std::make_shared<planning_scene::PlanningScene>(robot_model);
+
+  const auto object_name = "object";
+  collision_detection::CollisionRequest collision_request;
+  collision_request.group_name = "hand";
+  collision_request.verbose = true;
+
+  // Helper function to add an object to the planning scene
+  auto add_object = [&] {
+    const auto ps1 = createPlanningSceneDiff(*ps, object_name, moveit_msgs::msg::CollisionObject::ADD);
+    ps->usePlanningSceneMsg(ps1);
+    EXPECT_EQ(getCollisionObjectsNames(*ps), (std::set<std::string>{ object_name }));
+  };
+
+  // Helper function to attach the object to the robot
+  auto attach_object = [&] {
+    const auto ps1 = createPlanningSceneDiff(*ps, object_name, moveit_msgs::msg::CollisionObject::ADD, true);
+    ps->usePlanningSceneMsg(ps1);
+    EXPECT_EQ(getAttachedCollisionObjectsNames(*ps), (std::set<std::string>{ object_name }));
+  };
+
+  // Helper function to detach the object from the robot
+  auto detach_object = [&] {
+    const auto ps1 = createPlanningSceneDiff(*ps, object_name, moveit_msgs::msg::CollisionObject::REMOVE, true);
+    ps->usePlanningSceneMsg(ps1);
+    EXPECT_EQ(getAttachedCollisionObjectsNames(*ps), (std::set<std::string>{}));
+  };
+
+  // Modify the allowed collision matrix and make sure it is updated
+  auto modify_acm = [&] {
+    collision_detection::AllowedCollisionMatrix& acm = ps->getAllowedCollisionMatrixNonConst();
+    acm.setEntry(object_name, ps->getRobotModel()->getJointModelGroup("hand")->getLinkModelNamesWithCollisionGeometry(),
+                 true);
+    EXPECT_TRUE(ps->getAllowedCollisionMatrix().hasEntry(object_name));
+  };
+
+  // Check collision
+  auto check_collision = [&] {
+    collision_detection::CollisionResult res;
+    ps->checkCollision(collision_request, res);
+    return res.collision;
+  };
+
+  // Test removing a collision object using a diff
+  add_object();
+  EXPECT_TRUE(check_collision());
+  modify_acm();
+  EXPECT_FALSE(check_collision());
+  // Attach and detach the object from the robot to make sure that collision are still allowed
+  attach_object();
+  EXPECT_FALSE(check_collision());
+  detach_object();
+  EXPECT_FALSE(check_collision());
+  {
+    const auto ps1 = createPlanningSceneDiff(*ps, object_name, moveit_msgs::msg::CollisionObject::REMOVE);
+    ps->usePlanningSceneMsg(ps1);
+    EXPECT_EQ(getCollisionObjectsNames(*ps), (std::set<std::string>{}));
+    EXPECT_FALSE(ps->getAllowedCollisionMatrix().hasEntry(object_name));
+  }
+
+  // Test removing all objects
+  add_object();
+  // This should report a collision since it's a completely new object
+  EXPECT_TRUE(check_collision());
+  modify_acm();
+  EXPECT_FALSE(check_collision());
+  ps->removeAllCollisionObjects();
+  EXPECT_EQ(getCollisionObjectsNames(*ps), (std::set<std::string>{}));
+  EXPECT_FALSE(ps->getAllowedCollisionMatrix().hasEntry(object_name));
 }
 
 #ifndef INSTANTIATE_TEST_SUITE_P  // prior to gtest 1.10

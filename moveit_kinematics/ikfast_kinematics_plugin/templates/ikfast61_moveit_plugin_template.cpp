@@ -41,14 +41,20 @@
  * This file, including the ikfast cpp from OpenRAVE below, forms a MoveIt kinematics plugin.
  */
 
+#include <cmath>
+#include <list>
+#include <vector>
+#include <limits>
+#include <complex>
+
 #include <rclcpp/rclcpp.hpp>
-#include <moveit/kinematics_base/kinematics_base.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/kinematics_base/kinematics_base.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 #include <Eigen/Geometry>
 #include <tf2_kdl/tf2_kdl.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
-#include <ikfast_kinematics_parameters.hpp>
 #include <moveit/utils/logger.hpp>
+#include <_PACKAGE_NAME_/ikfast_kinematics_parameters.hpp>
 
 using namespace moveit::core;
 
@@ -808,7 +814,14 @@ bool IKFastKinematicsPlugin::getPositionFK(const std::vector<std::string>& link_
     return false;
   }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvla-cxx-extension"
+#endif
   IkReal angles[num_joints_];
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   for (unsigned char i = 0; i < num_joints_; ++i)
     angles[i] = joint_angles[i];
 

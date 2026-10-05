@@ -34,15 +34,15 @@
 
 /* Author: Ioan Sucan, Dave Coleman, Adam Leeper, Sachin Chitta */
 
-#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
-#include <moveit/motion_planning_rviz_plugin/motion_planning_frame_joints_widget.h>
-#include <moveit/robot_interaction/kinematic_options_map.h>
-#include <moveit/rviz_plugin_render_tools/planning_link_updater.h>
-#include <moveit/rviz_plugin_render_tools/robot_state_visualization.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.hpp>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame_joints_widget.hpp>
+#include <moveit/robot_interaction/kinematic_options_map.hpp>
+#include <moveit/rviz_plugin_render_tools/planning_link_updater.hpp>
+#include <moveit/rviz_plugin_render_tools/robot_state_visualization.hpp>
 
 #include <rviz_default_plugins/robot/robot.hpp>
 #include <rviz_default_plugins/robot/robot_link.hpp>
-#include <moveit/motion_planning_rviz_plugin/interactive_marker_display.h>
+#include <moveit/motion_planning_rviz_plugin/interactive_marker_display.hpp>
 
 #include <rviz_common/properties/property.hpp>
 #include <rviz_common/properties/string_property.hpp>
@@ -62,14 +62,16 @@
 #include <OgreSceneNode.h>
 #include <rviz_rendering/objects/shape.hpp>
 
-#include <moveit/robot_state/conversions.h>
-#include <moveit/trajectory_processing/trajectory_tools.h>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit/trajectory_processing/trajectory_tools.hpp>
 
 #include <QShortcut>
 
 #include "ui_motion_planning_rviz_plugin_frame.h"
-#include <moveit/utils/rclcpp_utils.h>
+#include <moveit/utils/rclcpp_utils.hpp>
 #include <moveit/utils/logger.hpp>
+
+#include <rclcpp/qos.hpp>
 
 namespace moveit_rviz_plugin
 {
@@ -280,7 +282,7 @@ void MotionPlanningDisplay::toggleSelectPlanningGroupSubscription(bool enable)
   if (enable)
   {
     planning_group_sub_ = node_->create_subscription<std_msgs::msg::String>(
-        "/rviz/moveit/select_planning_group", rclcpp::SystemDefaultsQoS(),
+        "/rviz/moveit/select_planning_group", rclcpp::ServicesQoS(),
         [this](const std_msgs::msg::String::ConstSharedPtr& msg) { return selectPlanningGroupCallback(msg); });
   }
   else
@@ -342,10 +344,14 @@ void MotionPlanningDisplay::updateBackgroundJobProgressBar()
     {
       p->setMaximum(n);
       if (n > 1)  // only show bar if there will be a progress to show
+      {
         p->show();
+      }
     }
     else  // progress
+    {
       p->setValue(p->maximum() - n);
+    }
     p->update();
   }
 }
@@ -675,7 +681,9 @@ void MotionPlanningDisplay::drawQueryStartState()
     }
   }
   else
+  {
     query_robot_start_->setVisible(false);
+  }
   context_->queueRender();
 }
 
@@ -799,7 +807,9 @@ void MotionPlanningDisplay::drawQueryGoalState()
     }
   }
   else
+  {
     query_robot_goal_->setVisible(false);
+  }
   context_->queueRender();
 }
 
@@ -984,7 +994,9 @@ bool MotionPlanningDisplay::isIKSolutionCollisionFree(moveit::core::RobotState* 
     return res;
   }
   else
+  {
     return true;
+  }
 }
 
 void MotionPlanningDisplay::updateLinkColors()
@@ -1335,6 +1347,19 @@ void MotionPlanningDisplay::onDisable()
 // ******************************************************************************************
 // Update
 // ******************************************************************************************
+// For Rolling, L-turtle, and newer
+#if RCLCPP_VERSION_GTE(30, 0, 0)
+void MotionPlanningDisplay::update(std::chrono::nanoseconds wall_dt, std::chrono::nanoseconds ros_dt)
+{
+  if (int_marker_display_)
+    int_marker_display_->update(wall_dt, ros_dt);
+  if (frame_)
+    frame_->updateSceneMarkers(wall_dt, ros_dt);
+
+  PlanningSceneDisplay::update(wall_dt, ros_dt);
+}
+// For Kilted and older
+#else
 void MotionPlanningDisplay::update(float wall_dt, float ros_dt)
 {
   if (int_marker_display_)
@@ -1344,8 +1369,9 @@ void MotionPlanningDisplay::update(float wall_dt, float ros_dt)
 
   PlanningSceneDisplay::update(wall_dt, ros_dt);
 }
+#endif
 
-void MotionPlanningDisplay::updateInternal(double wall_dt, double ros_dt)
+void MotionPlanningDisplay::updateInternal(std::chrono::nanoseconds wall_dt, std::chrono::nanoseconds ros_dt)
 {
   PlanningSceneDisplay::updateInternal(wall_dt, ros_dt);
 
@@ -1353,6 +1379,11 @@ void MotionPlanningDisplay::updateInternal(double wall_dt, double ros_dt)
   trajectory_visual_->update(wall_dt, ros_dt);
 
   renderWorkspaceBox();
+}
+
+void MotionPlanningDisplay::updateInternal(double wall_dt, double ros_dt)
+{
+  updateInternal(std::chrono::nanoseconds(std::lround(wall_dt)), std::chrono::nanoseconds(std::lround(ros_dt)));
 }
 
 void MotionPlanningDisplay::load(const rviz_common::Config& config)

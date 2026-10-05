@@ -37,13 +37,13 @@
  * that is the case, a warning is created but the planning process is not interrupted.
  */
 
-#include <moveit/planning_interface/planning_request_adapter.h>
+#include <moveit/planning_interface/planning_request_adapter.hpp>
 #include <class_loader/class_loader.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/node.hpp>
 #include <moveit/utils/logger.hpp>
 
-#include <default_request_adapter_parameters.hpp>
+#include <moveit_ros_planning/default_request_adapter_parameters.hpp>
 
 namespace default_planning_request_adapters
 {
@@ -55,6 +55,8 @@ public:
   CheckForStackedConstraints() : logger_(moveit::getLogger("moveit.ros.check_for_stacked_constraints"))
   {
   }
+
+  ~CheckForStackedConstraints() override = default;
 
   [[nodiscard]] std::string getDescription() const override
   {

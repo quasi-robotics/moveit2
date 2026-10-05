@@ -16,19 +16,18 @@ target_include_directories(
 include(GenerateExportHeader)
 generate_export_header(moveit_collision_detection)
 
-ament_target_dependencies(
+target_link_libraries(
   moveit_collision_detection
-  pluginlib
-  rclcpp
-  rmw_implementation
-  urdf
-  urdfdom
-  urdfdom_headers
-  srdfdom
-  visualization_msgs
-  tf2_eigen
-  geometric_shapes
-  OCTOMAP)
+  eigen_stl_containers::eigen_stl_containers
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  urdf::urdf
+  urdfdom::urdf_parser
+  srdfdom::srdfdom
+  ${visualization_msgs_TARGETS}
+  tf2_eigen::tf2_eigen
+  geometric_shapes::geometric_shapes
+  octomap)
 target_include_directories(
   moveit_collision_detection BEFORE
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)

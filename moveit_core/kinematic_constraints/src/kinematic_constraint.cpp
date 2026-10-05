@@ -34,11 +34,11 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/kinematic_constraints/kinematic_constraint.h>
+#include <moveit/kinematic_constraints/kinematic_constraint.hpp>
 #include <geometric_shapes/body_operations.h>
 #include <geometric_shapes/shape_operations.h>
-#include <moveit/robot_state/conversions.h>
-#include <moveit/collision_detection_fcl/collision_env_fcl.h>
+#include <moveit/robot_state/conversions.hpp>
+#include <moveit/collision_detection_fcl/collision_env_fcl.hpp>
 #include <geometric_shapes/check_isometry.h>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -163,10 +163,14 @@ bool JointConstraint::configure(const moveit_msgs::msg::JointConstraint& jc)
     {
       joint_model_ = robot_model_->getJointModel(jc.joint_name.substr(0, pos));
       if (pos + 1 < jc.joint_name.length())
+      {
         local_variable_name_ = jc.joint_name.substr(pos + 1);
+      }
     }
     else
+    {
       joint_model_ = robot_model_->getJointModel(jc.joint_name);
+    }
   }
 
   if (joint_model_)
@@ -267,7 +271,9 @@ bool JointConstraint::configure(const moveit_msgs::msg::JointConstraint& jc)
       constraint_weight_ = 1.0;
     }
     else
+    {
       constraint_weight_ = jc.weight;
+    }
   }
   return joint_model_ != nullptr;
 }
@@ -309,7 +315,9 @@ ConstraintEvaluationResult JointConstraint::decide(const moveit::core::RobotStat
     }
   }
   else
+  {
     dif = current_joint_position - joint_position_;
+  }
 
   // check bounds
   bool result = dif <= (joint_tolerance_above_ + 2.0 * std::numeric_limits<double>::epsilon()) &&
@@ -354,7 +362,9 @@ void JointConstraint::print(std::ostream& out) const
     out << '\n';
   }
   else
+  {
     out << "No constraint" << '\n';
+  }
 }
 
 bool PositionConstraint::configure(const moveit_msgs::msg::PositionConstraint& pc, const moveit::core::Transforms& tf)
@@ -415,7 +425,9 @@ bool PositionConstraint::configure(const moveit_msgs::msg::PositionConstraint& p
       constraint_region_.push_back(body);
     }
     else
+    {
       RCLCPP_WARN(getLogger(), "Could not construct primitive shape %zu", i);
+    }
   }
 
   // load meshes
@@ -454,7 +466,9 @@ bool PositionConstraint::configure(const moveit_msgs::msg::PositionConstraint& p
     constraint_weight_ = 1.0;
   }
   else
+  {
     constraint_weight_ = pc.weight;
+  }
 
   return !constraint_region_.empty();
 }
@@ -597,7 +611,8 @@ bool OrientationConstraint::configure(const moveit_msgs::msg::OrientationConstra
   // clearing out any old data
   clear();
 
-  link_model_ = robot_model_->getLinkModel(oc.link_name);
+  bool found;  // just needed to silent the error message in getLinkModel()
+  link_model_ = robot_model_->getLinkModel(oc.link_name, &found);
   if (!link_model_)
   {
     RCLCPP_WARN(getLogger(), "Could not find link model for link name %s", oc.link_name.c_str());
@@ -617,6 +632,7 @@ bool OrientationConstraint::configure(const moveit_msgs::msg::OrientationConstra
   if (oc.header.frame_id.empty())
     RCLCPP_WARN(getLogger(), "No frame specified for position constraint on link '%s'!", oc.link_name.c_str());
 
+  desired_R_in_frame_id_ = Eigen::Quaterniond(q);  // desired rotation wrt. frame_id
   if (tf.isFixedFrame(oc.header.frame_id))
   {
     tf.transformQuaternion(oc.header.frame_id, q, q);
@@ -749,10 +765,8 @@ ConstraintEvaluationResult OrientationConstraint::decide(const moveit::core::Rob
   else if (parameterization_type_ == moveit_msgs::msg::OrientationConstraint::ROTATION_VECTOR)
   {
     Eigen::AngleAxisd aa(diff.linear());
-    xyz_rotation = aa.axis() * aa.angle();
-    xyz_rotation(0) = fabs(xyz_rotation(0));
-    xyz_rotation(1) = fabs(xyz_rotation(1));
-    xyz_rotation(2) = fabs(xyz_rotation(2));
+    // transform rotation vector from target frame to frame_id and take absolute values
+    xyz_rotation = (desired_R_in_frame_id_ * (aa.axis() * aa.angle())).cwiseAbs();
   }
   else
   {
@@ -788,7 +802,9 @@ void OrientationConstraint::print(std::ostream& out) const
     out << "Desired orientation:" << q_des.x() << ',' << q_des.y() << ',' << q_des.z() << ',' << q_des.w() << '\n';
   }
   else
+  {
     out << "No constraint" << '\n';
+  }
 }
 
 VisibilityConstraint::VisibilityConstraint(const moveit::core::RobotModelConstPtr& model)
@@ -829,7 +845,9 @@ bool VisibilityConstraint::configure(const moveit_msgs::msg::VisibilityConstrain
     cone_sides_ = 3;
   }
   else
+  {
     cone_sides_ = vc.cone_sides;
+  }
 
   // compute the points on the base circle of the cone that make up the cone sides
   points_.clear();
@@ -874,7 +892,9 @@ bool VisibilityConstraint::configure(const moveit_msgs::msg::VisibilityConstrain
     constraint_weight_ = 1.0;
   }
   else
+  {
     constraint_weight_ = vc.weight;
+  }
 
   max_view_angle_ = vc.max_view_angle;
   max_range_angle_ = vc.max_range_angle;
@@ -1215,7 +1235,9 @@ void VisibilityConstraint::print(std::ostream& out) const
     out << "Target radius: " << target_radius_ << ", using " << cone_sides_ << " sides." << '\n';
   }
   else
+  {
     out << "No constraint" << '\n';
+  }
 }
 
 void KinematicConstraintSet::clear()

@@ -36,7 +36,7 @@
    Desc:   Wraps a trajectory_visualization playback class for Rviz into a stand alone display
 */
 
-#include <moveit/trajectory_rviz_plugin/trajectory_display.h>
+#include <moveit/trajectory_rviz_plugin/trajectory_display.hpp>
 #include <rviz_common/properties/string_property.hpp>
 #include <moveit/utils/logger.hpp>
 
@@ -129,11 +129,21 @@ void TrajectoryDisplay::onDisable()
   trajectory_visual_->onDisable();
 }
 
+// For Rolling, L-turtle, and newer
+#if RCLCPP_VERSION_GTE(30, 0, 0)
+void TrajectoryDisplay::update(std::chrono::nanoseconds wall_dt, std::chrono::nanoseconds ros_dt)
+{
+  Display::update(wall_dt, ros_dt);
+  trajectory_visual_->update(wall_dt, ros_dt);
+}
+// For Kilted and older
+#else
 void TrajectoryDisplay::update(float wall_dt, float ros_dt)
 {
   Display::update(wall_dt, ros_dt);
   trajectory_visual_->update(wall_dt, ros_dt);
 }
+#endif
 
 void TrajectoryDisplay::changedRobotDescription()
 {

@@ -34,17 +34,17 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.h>
-#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame.hpp>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/robot_state/conversions.h>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/robot_state/conversions.hpp>
 
 #include <std_srvs/srv/empty.hpp>
 #include <moveit_msgs/msg/robot_state.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
-#include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
+#include <moveit/trajectory_processing/time_optimal_trajectory_generation.hpp>
 
 #include "ui_motion_planning_rviz_plugin_frame.h"
 
@@ -99,10 +99,14 @@ void MotionPlanningFrame::pathConstraintsIndexChanged(int index)
     {
       std::string c = ui_->path_constraints_combo_box->itemText(index).toStdString();
       if (!move_group_->setPathConstraints(c))
+      {
         RCLCPP_WARN_STREAM(logger_, "Unable to set the path constraints: " << c);
+      }
     }
     else
+    {
       move_group_->clearPathConstraints();
+    }
   }
 }
 
@@ -135,13 +139,11 @@ bool MotionPlanningFrame::computeCartesianPlan()
 
   // setup default params
   double cart_step_size = 0.01;
-  double cart_jump_thresh = 0.0;
   bool avoid_collisions = true;
 
   // compute trajectory
   moveit_msgs::msg::RobotTrajectory trajectory;
-  double fraction =
-      move_group_->computeCartesianPath(waypoints, cart_step_size, cart_jump_thresh, trajectory, avoid_collisions);
+  double fraction = move_group_->computeCartesianPath(waypoints, cart_step_size, trajectory, avoid_collisions);
 
   if (fraction >= 1.0)
   {
@@ -259,10 +261,9 @@ void MotionPlanningFrame::onFinishedExecution(bool success)
   if (ui_->start_state_combo_box->currentText() == "<current>")
     startStateTextChanged(ui_->start_state_combo_box->currentText());
 
-  // auto-update goal to stored previous state (but only on success)
-  // on failure, the user must update the goal to the previous state himself
-  if (ui_->goal_state_combo_box->currentText() == "<previous>")
-    goalStateTextChanged(ui_->goal_state_combo_box->currentText());
+  // update query goal state (from previous or to current)
+  // also ensures that joints tab shows goal state model
+  goalStateTextChanged(ui_->goal_state_combo_box->currentText());
 }
 
 void MotionPlanningFrame::onNewPlanningSceneState()

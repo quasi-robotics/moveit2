@@ -32,10 +32,15 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <pilz_industrial_motion_planner/trajectory_functions.h>
+#include <pilz_industrial_motion_planner/trajectory_functions.hpp>
 
-#include <moveit/planning_scene/planning_scene.h>
+#include <moveit/planning_scene/planning_scene.hpp>
+// TODO: Remove conditional include when released to all active distros.
+#if __has_include(<tf2/LinearMath/Quaternion.hpp>)
+#include <tf2/LinearMath/Quaternion.hpp>
+#else
 #include <tf2/LinearMath/Quaternion.h>
+#endif
 #include <tf2_eigen_kdl/tf2_eigen_kdl.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -63,13 +68,6 @@ bool pilz_industrial_motion_planner::computePoseIK(const planning_scene::Plannin
     return false;
   }
 
-  if (!robot_model->getJointModelGroup(group_name)->canSetStateFromIK(link_name))
-  {
-    RCLCPP_ERROR_STREAM(getLogger(),
-                        "No valid IK solver exists for " << link_name << " in planning group " << group_name);
-    return false;
-  }
-
   if (frame_id != robot_model->getModelFrame())
   {
     RCLCPP_ERROR_STREAM(getLogger(), "Given frame (" << frame_id << ") is unequal to model frame("
@@ -81,18 +79,22 @@ bool pilz_industrial_motion_planner::computePoseIK(const planning_scene::Plannin
   rstate.setVariablePositions(seed);
 
   moveit::core::GroupStateValidityCallbackFn ik_constraint_function;
-  ik_constraint_function = [check_self_collision, scene](moveit::core::RobotState* robot_state,
-                                                         const moveit::core::JointModelGroup* joint_group,
-                                                         const double* joint_group_variable_values) {
-    return pilz_industrial_motion_planner::isStateColliding(check_self_collision, scene, robot_state, joint_group,
-                                                            joint_group_variable_values);
-  };
+  if (check_self_collision)
+  {
+    ik_constraint_function = [scene](moveit::core::RobotState* robot_state,
+                                     const moveit::core::JointModelGroup* joint_group,
+                                     const double* joint_group_variable_values) {
+      return pilz_industrial_motion_planner::isStateColliding(scene, robot_state, joint_group,
+                                                              joint_group_variable_values);
+    };
+  }
 
   // call ik
-  if (rstate.setFromIK(robot_model->getJointModelGroup(group_name), pose, link_name, timeout, ik_constraint_function))
+  const moveit::core::JointModelGroup* jmg = robot_model->getJointModelGroup(group_name);
+  if (rstate.setFromIK(jmg, pose, link_name, timeout, ik_constraint_function))
   {
     // copy the solution
-    for (const auto& joint_name : robot_model->getJointModelGroup(group_name)->getActiveJointModelNames())
+    for (const auto& joint_name : jmg->getActiveJointModelNames())
     {
       solution[joint_name] = rstate.getVariablePosition(joint_name);
     }
@@ -115,30 +117,27 @@ bool pilz_industrial_motion_planner::computePoseIK(const planning_scene::Plannin
                                                    const double timeout)
 {
   Eigen::Isometry3d pose_eigen;
-  tf2::convert<geometry_msgs::msg::Pose, Eigen::Isometry3d>(pose, pose_eigen);
+  tf2::fromMsg(pose, pose_eigen);
   return computePoseIK(scene, group_name, link_name, pose_eigen, frame_id, seed, solution, check_self_collision,
                        timeout);
 }
 
-bool pilz_industrial_motion_planner::computeLinkFK(const planning_scene::PlanningSceneConstPtr& scene,
-                                                   const std::string& link_name,
+bool pilz_industrial_motion_planner::computeLinkFK(moveit::core::RobotState& robot_state, const std::string& link_name,
                                                    const std::map<std::string, double>& joint_state,
                                                    Eigen::Isometry3d& pose)
-{  // take robot state from the current scene
-  moveit::core::RobotState rstate{ scene->getCurrentState() };
-
+{
   // check the reference frame of the target pose
-  if (!rstate.knowsFrameTransform(link_name))
+  if (!robot_state.knowsFrameTransform(link_name))
   {
     RCLCPP_ERROR_STREAM(getLogger(), "The target link " << link_name << " is not known by robot.");
     return false;
   }
 
-  rstate.setVariablePositions(joint_state);
+  robot_state.setVariablePositions(joint_state);
 
   // update the frame
-  rstate.update();
-  pose = rstate.getFrameTransform(link_name);
+  robot_state.update();
+  pose = robot_state.getFrameTransform(link_name);
 
   return true;
 }
@@ -218,7 +217,7 @@ bool pilz_industrial_motion_planner::generateJointTrajectory(
   rclcpp::Time generation_begin = clock.now();
 
   // generate the time samples
-  const double epsilon = 10e-06;  // avoid adding the last time sample twice
+  const double epsilon = 1e-5;  // avoid adding the last time sample twice
   std::vector<double> time_samples;
   for (double t_sample = 0.0; t_sample < trajectory.Duration() - epsilon; t_sample += sampling_time)
   {
@@ -230,9 +229,9 @@ bool pilz_industrial_motion_planner::generateJointTrajectory(
   Eigen::Isometry3d pose_sample;
   std::map<std::string, double> ik_solution_last, ik_solution, joint_velocity_last;
   ik_solution_last = initial_joint_position;
-  for (const auto& item : ik_solution_last)
+  for (const auto& [joint_name, _] : ik_solution_last)
   {
-    joint_velocity_last[item.first] = 0.0;
+    joint_velocity_last[joint_name] = 0.0;
   }
 
   for (std::vector<double>::const_iterator time_iter = time_samples.begin(); time_iter != time_samples.end();
@@ -574,17 +573,11 @@ bool pilz_industrial_motion_planner::intersectionFound(const Eigen::Vector3d& p_
   return ((p_current - p_center).norm() <= r) && ((p_next - p_center).norm() >= r);
 }
 
-bool pilz_industrial_motion_planner::isStateColliding(const bool test_for_self_collision,
-                                                      const planning_scene::PlanningSceneConstPtr& scene,
+bool pilz_industrial_motion_planner::isStateColliding(const planning_scene::PlanningSceneConstPtr& scene,
                                                       moveit::core::RobotState* rstate,
                                                       const moveit::core::JointModelGroup* const group,
                                                       const double* const ik_solution)
 {
-  if (!test_for_self_collision)
-  {
-    return true;
-  }
-
   rstate->setJointGroupPositions(group, ik_solution);
   rstate->update();
   collision_detection::CollisionRequest collision_req;
@@ -598,7 +591,7 @@ bool pilz_industrial_motion_planner::isStateColliding(const bool test_for_self_c
 void normalizeQuaternion(geometry_msgs::msg::Quaternion& quat)
 {
   tf2::Quaternion q;
-  tf2::convert<geometry_msgs::msg::Quaternion, tf2::Quaternion>(quat, q);
+  tf2::fromMsg(quat, q);
   quat = tf2::toMsg(q.normalized());
 }
 

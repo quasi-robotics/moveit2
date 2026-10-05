@@ -34,13 +34,13 @@
 
 /* Author: Kentaro Wada */
 
-#include "execute_trajectory_action_capability.h"
+#include "execute_trajectory_action_capability.hpp"
 
-#include <moveit/moveit_cpp/moveit_cpp.h>
-#include <moveit/plan_execution/plan_execution.h>
-#include <moveit/trajectory_processing/trajectory_tools.h>
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/move_group/capability_names.h>
+#include <moveit/moveit_cpp/moveit_cpp.hpp>
+#include <moveit/plan_execution/plan_execution.hpp>
+#include <moveit/trajectory_processing/trajectory_tools.hpp>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/move_group/capability_names.hpp>
 #include <moveit/utils/logger.hpp>
 
 namespace move_group
@@ -57,9 +57,21 @@ MoveGroupExecuteTrajectoryAction::MoveGroupExecuteTrajectoryAction() : MoveGroup
 {
 }
 
+MoveGroupExecuteTrajectoryAction::~MoveGroupExecuteTrajectoryAction()
+{
+  callback_executor_.cancel();
+
+  if (callback_thread_.joinable())
+    callback_thread_.join();
+}
+
 void MoveGroupExecuteTrajectoryAction::initialize()
 {
   auto node = context_->moveit_cpp_->getNode();
+  callback_group_ = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive,
+                                                false /* don't spin with node executor */);
+  callback_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
+  callback_thread_ = std::thread([this]() { callback_executor_.spin(); });
   // start the move action server
   callback_group_ = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   execute_action_server_ = rclcpp_action::create_server<ExecTrajectory>(
@@ -69,8 +81,8 @@ void MoveGroupExecuteTrajectoryAction::initialize()
         return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
       },
       [](const std::shared_ptr<ExecTrajectoryGoal>& /* unused */) { return rclcpp_action::CancelResponse::ACCEPT; },
-      [this](const auto& goal) { executePathCallback(goal); },
-      rcl_action_server_get_default_options(), callback_group_);
+      [this](const auto& goal) { executePathCallback(goal); }, rcl_action_server_get_default_options(),
+      callback_group_);
 }
 
 void MoveGroupExecuteTrajectoryAction::executePathCallback(const std::shared_ptr<ExecTrajectoryGoal>& goal)
@@ -108,7 +120,6 @@ void MoveGroupExecuteTrajectoryAction::executePath(const std::shared_ptr<ExecTra
 {
   RCLCPP_INFO(getLogger(), "Execution request received");
 
-  context_->trajectory_execution_manager_->clear();
   if (context_->trajectory_execution_manager_->push(goal->get_goal()->trajectory, goal->get_goal()->controller_names))
   {
     setExecuteTrajectoryState(MONITOR, goal);

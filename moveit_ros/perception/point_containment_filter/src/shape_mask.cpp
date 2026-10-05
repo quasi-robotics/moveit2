@@ -34,7 +34,7 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/point_containment_filter/shape_mask.h>
+#include <moveit/point_containment_filter/shape_mask.hpp>
 #include <geometric_shapes/body_operations.h>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <rclcpp/logger.hpp>
@@ -95,7 +95,9 @@ point_containment_filter::ShapeHandle point_containment_filter::ShapeMask::addSh
     used_handles_[next_handle_] = insert_op.first;
   }
   else
+  {
     return 0;
+  }
 
   ShapeHandle ret = next_handle_;
   const std::size_t sz = min_handle_ + bodies_.size() + 1;
@@ -124,7 +126,9 @@ void point_containment_filter::ShapeMask::removeShape(ShapeHandle handle)
     min_handle_ = handle;
   }
   else
+  {
     RCLCPP_ERROR(getLogger(), "Unable to remove shape handle %u", handle);
+  }
 }
 
 void point_containment_filter::ShapeMask::maskContainment(const sensor_msgs::msg::PointCloud2& data_in,

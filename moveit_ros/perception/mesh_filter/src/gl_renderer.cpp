@@ -42,7 +42,7 @@
 #include <GL/glut.h>
 #endif
 #include <GL/freeglut.h>
-#include <moveit/mesh_filter/gl_renderer.h>
+#include <moveit/mesh_filter/gl_renderer.hpp>
 #include <moveit/utils/logger.hpp>
 #include <sstream>
 #include <fstream>
@@ -213,7 +213,7 @@ void mesh_filter::GLRenderer::getColorBuffer(unsigned char* buffer) const
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void mesh_filter::GLRenderer::getDepthBuffer(double* buffer) const
+void mesh_filter::GLRenderer::getDepthBuffer(float* buffer) const
 {
   glBindFramebuffer(GL_FRAMEBUFFER, fbo_id_);
   glBindTexture(GL_TEXTURE_2D, depth_id_);
@@ -387,7 +387,7 @@ void mesh_filter::GLRenderer::createGLContext()
 
   if (context_it == s_context.end())
   {
-    s_context.at(thread_id) = std::pair<unsigned, GLuint>(1, 0);
+    s_context.insert({ thread_id, std::pair<unsigned, GLuint>(1, 0) });
 
     glutInitWindowPosition(glutGet(GLUT_SCREEN_WIDTH) + 30000, 0);
     glutInitWindowSize(1, 1);
@@ -411,7 +411,9 @@ void mesh_filter::GLRenderer::createGLContext()
     s_context.at(thread_id) = std::pair<unsigned, GLuint>(1, window_id);
   }
   else
+  {
     ++(context_it->second.first);
+  }
 }
 
 void mesh_filter::GLRenderer::deleteGLContext()

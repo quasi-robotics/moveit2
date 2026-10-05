@@ -27,6 +27,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <cstdint>
 #include <ogre_helpers/mesh_shape.hpp>
 
 #include <OgreMesh.h>
@@ -129,10 +130,14 @@ void MeshShape::endTriangles()
       offset_node_->attachObject(entity_);
     }
     else
+    {
       RVIZ_COMMON_LOG_ERROR("Unable to construct triangle mesh");
+    }
   }
   else
+  {
     RVIZ_COMMON_LOG_ERROR("No triangles added");
+  }
 }
 
 void MeshShape::clear()
@@ -140,7 +145,11 @@ void MeshShape::clear()
   if (entity_)
   {
     entity_->detachFromParent();
-    Ogre::MeshManager::getSingleton().remove(entity_->getMesh()->getName());
+    const auto& mesh_name = entity_->getMesh()->getName();
+    if (Ogre::MeshPtr mesh = Ogre::MeshManager::getSingleton().getByName(mesh_name))
+    {
+      Ogre::MeshManager::getSingleton().remove(mesh);
+    }
     scene_manager_->destroyEntity(entity_);
     entity_ = nullptr;
   }

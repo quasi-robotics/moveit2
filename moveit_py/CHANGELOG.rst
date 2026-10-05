@@ -2,6 +2,85 @@
 Changelog for package moveit_py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+* Fix clang-tidy issues
+* Contributors: Robert Haschke
+
+2.15.1 (2026-08-29)
+-------------------
+
+2.15.0 (2026-08-12)
+-------------------
+* resolute: add explicit <cstdint> / <fstream> includes for GCC 15 (`#3754 <https://github.com/moveit/moveit2/issues/3754>`_)
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* [macOS] Fix compilation and linking issues in MoveIt2 (`#3631 <https://github.com/moveit/moveit2/issues/3631>`_)
+* fix(moveit_py): RobotState.state_info (`#3588 <https://github.com/moveit/moveit2/issues/3588>`_)
+* pybind11_vendor is removed in favor of pybind11-dev (`#3568 <https://github.com/moveit/moveit2/issues/3568>`_)
+* Contributors: Alejandro Hernández Cordero, Dhruv Patel, Matthijs van der Burgh, Nathan Brooks, Shivam Maurya, Stephanie Eng
+
+2.14.1 (2025-09-09)
+-------------------
+* Update pre-commit-config (`#2805 <https://github.com/moveit/moveit2/issues/2805>`_)
+* Contributors: mosfet80
+
+2.14.0 (2025-06-13)
+-------------------
+* Fix arg name in PlanningScene stub file (`#3489 <https://github.com/moveit/moveit2/issues/3489>`_)
+* Python PlanningScene API: add set_current_state() (`#3481 <https://github.com/moveit/moveit2/issues/3481>`_)
+* Allow conversion rclpy.Time <-> rclcpp::Time (`#3453 <https://github.com/moveit/moveit2/issues/3453>`_)
+  Co-authored-by: Robert Haschke <rhaschke@users.noreply.github.com>
+* Contributors: Samuele Sandrini, Shobin vinod, matthias88
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* Allow conversion from list[str] to std::vector<std::string> (`#3423 <https://github.com/ros-planning/moveit2/issues/3423>`_)
+* feat: add remapping argument to MoveItPy initialization (`#3367 <https://github.com/ros-planning/moveit2/issues/3367>`_)
+* Contributors: Jens Vanhooydonck, Kazuya Oguma
+
+2.13.0 (2025-02-15)
+-------------------
+* move TrajectoryExecutionManager::clear() to private (`#3226 <https://github.com/ros-planning/moveit2/issues/3226>`_)
+* Update CMakeLists.txt (`#3218 <https://github.com/ros-planning/moveit2/issues/3218>`_)
+* Contributors: Dongya Jiang, mosfet80
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Add use_padding flag + deprecate checkCollisionUnpadded() functions (`#3088 <https://github.com/ros-planning/moveit2/issues/3088>`_)
+* Fixed Typo get_trajectory_execution_manager in planning.pyi file (`#3029 <https://github.com/ros-planning/moveit2/issues/3029>`_)
+* Contributors: Jens Vanhooydonck, Sebastian Jahr, Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+* Add python bindings for saving and loading geometry from a .scene file (`#2971 <https://github.com/moveit/moveit2/issues/2971>`_)
+* Add namespace to MoveitPy (`#2884 <https://github.com/moveit/moveit2/issues/2884>`_)
+* New planning scene message (`#2885 <https://github.com/moveit/moveit2/issues/2885>`_)
+* Contributors: Abhiroop Bhavsar, Bilal Gill, Jens Vanhooydonck
+
+2.10.0 (2024-06-13)
+-------------------
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* Get configuration values of traj_exec_man (`#2702 <https://github.com/moveit/moveit2/issues/2702>`_)
+  * (ros_planning) get configuration values of traj_exec_man
+  * (py) get configuration values of traj_exec_man
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* log after rclcpp init
+* Contributors: Henning Kayser, Matthijs van der Burgh, Robert Haschke, Sebastian Jahr, Tyler Weaver, peterdavidfagan
+
 2.9.0 (2024-01-09)
 ------------------
 * [PSM] Process collision object color when adding object trough the planning scene monitor (`#2567 <https://github.com/ros-planning/moveit2/issues/2567>`_)

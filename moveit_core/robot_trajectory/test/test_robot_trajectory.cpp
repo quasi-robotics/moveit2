@@ -34,10 +34,11 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/robot_model/robot_model.h>
-#include <moveit/robot_state/robot_state.h>
-#include <moveit/robot_trajectory/robot_trajectory.h>
-#include <moveit/utils/robot_model_test_utils.h>
+#include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_state/robot_state.hpp>
+#include <moveit/robot_trajectory/robot_trajectory.hpp>
+#include <moveit/utils/robot_model_test_utils.hpp>
+#include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <urdf_parser/urdf_parser.h>
 #include <gtest/gtest.h>
 
@@ -598,6 +599,111 @@ TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryDensity)
   EXPECT_FALSE(density.has_value());
 }
 
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesBetweenWaypoints)
+{
+  robot_trajectory::RobotTrajectoryPtr trajectory;
+  initTestTrajectory(trajectory);
+  EXPECT_EQ(trajectory->size(), 5);
+  EXPECT_EQ(trajectory->getDuration(), 0.5);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+
+  EXPECT_NO_THROW(trajectory->findWayPointIndicesForDurationAfterStart(0.15, before, after, blend));
+  EXPECT_EQ(before, 0);
+  EXPECT_EQ(after, 1);
+  EXPECT_NEAR(blend, /*between 0 and 1*/ 0.5, 1e-6);
+
+  EXPECT_NO_THROW(trajectory->findWayPointIndicesForDurationAfterStart(0.3, before, after, blend));
+  EXPECT_EQ(before, 1);
+  EXPECT_EQ(after, 2);
+  EXPECT_NEAR(blend, /*exactly at 2*/ 1.0, 1e-6);
+}
+
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesAtLastOfManyWaypoints)
+{
+  robot_trajectory::RobotTrajectoryPtr trajectory;
+  initTestTrajectory(trajectory);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+
+  const double total_duration = trajectory->getDuration();
+  EXPECT_NO_THROW(trajectory->findWayPointIndicesForDurationAfterStart(total_duration, before, after, blend));
+  EXPECT_EQ(before, 3);
+  EXPECT_EQ(after, 4);
+  EXPECT_DOUBLE_EQ(blend, 1.0);
+}
+
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesAfterLastWaypoint)
+{
+  robot_trajectory::RobotTrajectoryPtr trajectory;
+  initTestTrajectory(trajectory);
+
+  const double total_duration = trajectory->getDuration();
+  const double outbound_duration = total_duration + 100.0;
+  EXPECT_GT(outbound_duration, total_duration);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+  EXPECT_NO_THROW(trajectory->findWayPointIndicesForDurationAfterStart(outbound_duration, before, after, blend));
+  EXPECT_EQ(before, 4);
+  EXPECT_EQ(after, 4);
+  EXPECT_DOUBLE_EQ(blend, 1.0);
+}
+
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesEmptyWaypoints)
+{
+  robot_trajectory::RobotTrajectory empty_traj(robot_model_, arm_jmg_name_);
+  const double total_duration = empty_traj.getDuration();
+  EXPECT_DOUBLE_EQ(total_duration, 0.0);
+
+  const double outbound_duration = 1.0;
+  EXPECT_GT(outbound_duration, total_duration);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+  EXPECT_NO_THROW(empty_traj.findWayPointIndicesForDurationAfterStart(outbound_duration, before, after, blend));
+  EXPECT_EQ(before, 0);
+  EXPECT_EQ(after, 0);
+  EXPECT_DOUBLE_EQ(blend, 0.0);
+}
+
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesBeforeFirstWaypoint)
+{
+  robot_trajectory::RobotTrajectoryPtr trajectory;
+  initTestTrajectory(trajectory);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+
+  EXPECT_NO_THROW(trajectory->findWayPointIndicesForDurationAfterStart(-0.1, before, after, blend));
+  EXPECT_EQ(before, 0);
+  EXPECT_EQ(after, 0);
+  EXPECT_DOUBLE_EQ(blend, 0.0);
+}
+
+TEST_F(RobotTrajectoryTestFixture, RobotTrajectoryFindWayPointIndicesAtLastOfSingleWaypoint)
+{
+  robot_trajectory::RobotTrajectory trajectory(robot_model_, arm_jmg_name_);
+  trajectory.addSuffixWayPoint(robot_state_, 0.0);
+
+  int before = -1;
+  int after = -1;
+  double blend = -1.0;
+
+  const double total_duration = trajectory.getDuration();
+  EXPECT_NO_THROW(trajectory.findWayPointIndicesForDurationAfterStart(total_duration, before, after, blend));
+  EXPECT_EQ(before, 0);
+  EXPECT_EQ(after, 0);
+  EXPECT_DOUBLE_EQ(blend, 1.0);
+}
+
 TEST_F(OneRobot, Unwind)
 {
   const double epsilon = 1e-4;
@@ -634,6 +740,73 @@ TEST_F(OneRobot, UnwindFromState)
   }
 }
 
+TEST_F(OneRobot, MultiDofTrajectoryToJointStates)
+{
+  // GIVEN a RobotTrajectory with two waypoints of a robot model that has a multi-dof base joint
+  robot_trajectory::RobotTrajectory trajectory(robot_model_);
+  trajectory.addSuffixWayPoint(robot_state_, 0.01 /* dt */);
+  trajectory.addSuffixWayPoint(robot_state_, 0.01 /* dt */);
+
+  // WHEN converting the RobotTrajectory to a JointTrajectory message, including mdof variables
+  auto maybe_trajectory_msg = toJointTrajectory(trajectory, true /* include_mdof_joints */);
+
+  // WHEN the optional trajectory result is valid (always assumed)
+  ASSERT_TRUE(maybe_trajectory_msg.has_value());
+
+  const auto& traj = maybe_trajectory_msg.value();
+  const auto& joint_names = traj.joint_names;
+
+  size_t joint_variable_count = 0u;
+  for (const auto& active_joint : robot_model_->getActiveJointModels())
+  {
+    joint_variable_count += active_joint->getVariableCount();
+  }
+
+  // THEN all joints names should include the base joint variables
+  EXPECT_EQ(joint_names.size(), joint_variable_count);
+  EXPECT_TRUE(std::find(joint_names.begin(), joint_names.end(), "base_joint/x") != joint_names.end());
+  // THEN the size of the trajectory should equal the input size
+  ASSERT_EQ(traj.points.size(), 2u);
+  // THEN all positions size should equal the variable size
+  EXPECT_EQ(traj.points.at(0).positions.size(), joint_variable_count);
+  EXPECT_EQ(traj.points.at(1).positions.size(), joint_variable_count);
+}
+
+TEST_F(OneRobot, SetMultiDofTrajectory)
+{
+  // GIVEN a RobotTrajectory message with a multi-dof joint trajectory including velocities and accelerations
+  robot_trajectory::RobotTrajectory trajectory(robot_model_);
+  moveit_msgs::msg::RobotTrajectory trajectory_msg;
+
+  trajectory_msg.multi_dof_joint_trajectory.joint_names = { "base_joint" };
+
+  trajectory_msg.multi_dof_joint_trajectory.points.resize(1);
+  trajectory_msg.multi_dof_joint_trajectory.points[0].transforms.resize(1);
+  trajectory_msg.multi_dof_joint_trajectory.points[0].transforms[0].translation.x = 0.01;
+
+  trajectory_msg.multi_dof_joint_trajectory.points[0].velocities.resize(1);
+  trajectory_msg.multi_dof_joint_trajectory.points[0].velocities[0].linear.x = 0.02;
+  trajectory_msg.multi_dof_joint_trajectory.points[0].velocities[0].linear.y = 0.03;
+
+  trajectory_msg.multi_dof_joint_trajectory.points[0].accelerations.resize(1);
+  trajectory_msg.multi_dof_joint_trajectory.points[0].accelerations[0].linear.x = 0.04;
+  trajectory_msg.multi_dof_joint_trajectory.points[0].accelerations[0].linear.y = 0.05;
+
+  // WHEN setting that RobotTrajectory message for a RobotTrajectory
+  trajectory.setRobotTrajectoryMsg(*robot_state_, trajectory_msg);
+
+  // THEN positions should be set correctly in the RobotTrajectory waypoints
+  const auto wp = trajectory.getWayPoint(0);
+  EXPECT_EQ(wp.getVariablePosition("base_joint/x"), 0.01);
+
+  // THEN velocities should be set correctly in the RobotTrajectory waypoints
+  EXPECT_EQ(wp.getVariableVelocity("base_joint/x"), 0.02);
+  EXPECT_EQ(wp.getVariableVelocity("base_joint/y"), 0.03);
+
+  // THEN accelerations should be set correctly in the RobotTrajectory waypoints
+  EXPECT_EQ(wp.getVariableAcceleration("base_joint/x"), 0.04);
+  EXPECT_EQ(wp.getVariableAcceleration("base_joint/y"), 0.05);
+}
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

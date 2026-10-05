@@ -2,6 +2,43 @@
 Changelog for package moveit_runtime
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+
+2.15.1 (2026-08-29)
+-------------------
+
+2.15.0 (2026-08-12)
+-------------------
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Contributors: Shivam Maurya
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+
+2.13.0 (2025-02-15)
+-------------------
+
+2.12.0 (2024-11-29)
+-------------------
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Merge branch 'main' into dependabot/github_actions/SonarSource/sonarcloud-github-c-cpp-2

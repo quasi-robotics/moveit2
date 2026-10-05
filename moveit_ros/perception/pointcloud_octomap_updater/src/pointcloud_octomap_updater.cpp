@@ -35,15 +35,32 @@
 /* Author: Jon Binney, Ioan Sucan */
 
 #include <cmath>
-#include <moveit/pointcloud_octomap_updater/pointcloud_octomap_updater.h>
-#include <moveit/occupancy_map_monitor/occupancy_map_monitor.h>
+#include <moveit/pointcloud_octomap_updater/pointcloud_octomap_updater.hpp>
+#include <moveit/occupancy_map_monitor/occupancy_map_monitor.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+// TODO: Remove conditional includes when released to all active distros.
+#if __has_include(<tf2/LinearMath/Vector3.hpp>)
+#include <tf2/LinearMath/Vector3.hpp>
+#else
 #include <tf2/LinearMath/Vector3.h>
+#endif
+#if __has_include(<tf2/LinearMath/Transform.hpp>)
+#include <tf2/LinearMath/Transform.hpp>
+#else
 #include <tf2/LinearMath/Transform.h>
+#endif
 #include <sensor_msgs/point_cloud2_iterator.hpp>
+// For Rolling, Kilted, and newer
+#if RCLCPP_VERSION_GTE(29, 6, 0)
+#include <tf2_ros/create_timer_interface.hpp>
+#include <tf2_ros/create_timer_ros.hpp>
+// For Jazzy and older
+#else
 #include <tf2_ros/create_timer_interface.h>
 #include <tf2_ros/create_timer_ros.h>
+#endif
 #include <moveit/utils/logger.hpp>
+#include <rclcpp/version.h>
 
 #include <memory>
 
@@ -64,15 +81,38 @@ PointCloudOctomapUpdater::PointCloudOctomapUpdater()
 
 bool PointCloudOctomapUpdater::setParams(const std::string& name_space)
 {
+  auto check_required = [this, &name_space](const std::string& key, auto& target,
+                                            std::vector<std::string>& missing_keys) {
+    if (!this->node_->get_parameter(name_space + "." + key, target))
+    {
+      missing_keys.push_back(key);
+    }
+  };
   // This parameter is optional
   node_->get_parameter_or(name_space + ".ns", ns_, std::string());
-  return node_->get_parameter(name_space + ".point_cloud_topic", point_cloud_topic_) &&
-         node_->get_parameter(name_space + ".max_range", max_range_) &&
-         node_->get_parameter(name_space + ".padding_offset", padding_) &&
-         node_->get_parameter(name_space + ".padding_scale", scale_) &&
-         node_->get_parameter(name_space + ".point_subsample", point_subsample_) &&
-         node_->get_parameter(name_space + ".max_update_rate", max_update_rate_) &&
-         node_->get_parameter(name_space + ".filtered_cloud_topic", filtered_cloud_topic_);
+
+  std::vector<std::string> missing_keys;
+
+  check_required("point_cloud_topic", point_cloud_topic_, missing_keys);
+  check_required("max_range", max_range_, missing_keys);
+  check_required("padding_offset", padding_, missing_keys);
+  check_required("padding_scale", scale_, missing_keys);
+  check_required("point_subsample", point_subsample_, missing_keys);
+  check_required("max_update_rate", max_update_rate_, missing_keys);
+  check_required("filtered_cloud_topic", filtered_cloud_topic_, missing_keys);
+
+  if (missing_keys.empty())
+  {
+    return true;
+  }
+  std::ostringstream oss;
+  for (const auto& name : missing_keys)
+  {
+    oss << ", "
+        << "'" << name << "'";
+  }
+  RCLCPP_ERROR(node_->get_logger(), "Missing parameters under '%s': %s", name_space.c_str(), oss.str().c_str());
+  return false;
 }
 
 bool PointCloudOctomapUpdater::initialize(const rclcpp::Node::SharedPtr& node)
@@ -80,7 +120,11 @@ bool PointCloudOctomapUpdater::initialize(const rclcpp::Node::SharedPtr& node)
   node_ = node;
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
   auto create_timer_interface =
+#if RCLCPP_VERSION_GTE(29, 6, 0)
+      std::make_shared<tf2_ros::CreateTimerROS>(*node);
+#else
       std::make_shared<tf2_ros::CreateTimerROS>(node->get_node_base_interface(), node->get_node_timers_interface());
+#endif
   tf_buffer_->setCreateTimerInterface(create_timer_interface);
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   shape_mask_ = std::make_unique<point_containment_filter::ShapeMask>();
@@ -96,7 +140,6 @@ void PointCloudOctomapUpdater::start()
   if (!ns_.empty())
     prefix = ns_ + "/";
 
-  rclcpp::QoS qos(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_sensor_data));
   if (!filtered_cloud_topic_.empty())
   {
     filtered_cloud_publisher_ =
@@ -105,13 +148,33 @@ void PointCloudOctomapUpdater::start()
 
   if (point_cloud_subscriber_)
     return;
+
+  rclcpp::SubscriptionOptions options;
+  options.callback_group = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   /* subscribe to point cloud topic using tf filter*/
-  point_cloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(node_, point_cloud_topic_,
-                                                                                           rmw_qos_profile_sensor_data);
+  auto qos_profile =
+#if RCLCPP_VERSION_GTE(28, 3, 0)
+      rclcpp::SensorDataQoS();
+#else
+      rmw_qos_profile_sensor_data;
+#endif
+  point_cloud_subscriber_ =
+      new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(node_, point_cloud_topic_, qos_profile, options);
   if (tf_listener_ && tf_buffer_ && !monitor_->getMapFrame().empty())
   {
+// For Rolling, L-turtle, and newer
+#if RCLCPP_VERSION_GTE(30, 0, 0)
+    using MessageFilterPointCloud2 = tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>;
+
+    MessageFilterPointCloud2::RequiredInterfaces required_interfaces{ node_->get_node_logging_interface(),
+                                                                      node_->get_node_clock_interface() };
+
+    point_cloud_filter_ = new tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>(
+        *point_cloud_subscriber_, *tf_buffer_, monitor_->getMapFrame(), 5, std::move(required_interfaces));
+#else
     point_cloud_filter_ = new tf2_ros::MessageFilter<sensor_msgs::msg::PointCloud2>(
         *point_cloud_subscriber_, *tf_buffer_, monitor_->getMapFrame(), 5, node_);
+#endif
     point_cloud_filter_->registerCallback(
         [this](const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud) { cloudMsgCallback(cloud); });
     RCLCPP_INFO(logger_, "Listening to '%s' using message filter with target frame '%s'", point_cloud_topic_.c_str(),
@@ -209,7 +272,9 @@ void PointCloudOctomapUpdater::cloudMsgCallback(const sensor_msgs::msg::PointClo
       }
     }
     else
+    {
       return;
+    }
   }
 
   /* compute sensor origin in map frame */
@@ -328,6 +393,7 @@ void PointCloudOctomapUpdater::cloudMsgCallback(const sensor_msgs::msg::PointClo
     /* compute the free cells along each ray that ends at a clipped cell */
     for (const octomap::OcTreeKey& clip_cell : clip_cells)
     {
+      free_cells.insert(clip_cell);
       if (tree_->computeRayKeys(sensor_origin, tree_->keyToCoord(clip_cell), key_ray_))
         free_cells.insert(key_ray_.begin(), key_ray_.end());
     }

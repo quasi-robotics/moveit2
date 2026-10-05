@@ -38,12 +38,31 @@
  *
  */
 
-#include <moveit_servo/servo_node.hpp>
+#if __has_include(<realtime_tools/realtime_helpers.hpp>)
+#include <cstdint>
 #include <realtime_tools/realtime_helpers.hpp>
+#else
+#include <realtime_tools/thread_priority.hpp>
+#endif
+
 #include <moveit/utils/logger.hpp>
+#include <moveit_servo/servo_node.hpp>
 
 namespace moveit_servo
 {
+
+namespace
+{
+// This function is used to convert times in case planning_scene_monitor uses RCL_SYSTEM_TIME
+rclcpp::Time convertClockType(const rclcpp::Time& time, rcl_clock_type_t new_clock_type)
+{
+  if (time.get_clock_type() != new_clock_type)
+  {
+    return rclcpp::Time(time.nanoseconds(), new_clock_type);
+  }
+  return time;
+}
+}  // namespace
 
 rclcpp::node_interfaces::NodeBaseInterface::SharedPtr ServoNode::get_node_base_interface()
 {
@@ -66,14 +85,6 @@ ServoNode::ServoNode(const rclcpp::NodeOptions& options)
   , new_pose_msg_{ false }
 {
   moveit::setNodeLoggerName(node_->get_name());
-
-  if (!options.use_intra_process_comms())
-  {
-    RCLCPP_WARN_STREAM(node_->get_logger(),
-                       "Intra-process communication is disabled, consider enabling it by adding: "
-                       "\nextra_arguments=[{'use_intra_process_comms' : True}]\nto the Servo composable node "
-                       "in the launch file");
-  }
 
   // Configure SCHED_FIFO and priority
   if (realtime_tools::configure_sched_fifo(servo_params_.thread_priority))
@@ -150,6 +161,15 @@ ServoNode::ServoNode(const rclcpp::NodeOptions& options)
 void ServoNode::pauseServo(const std::shared_ptr<std_srvs::srv::SetBool::Request>& request,
                            const std::shared_ptr<std_srvs::srv::SetBool::Response>& response)
 {
+  if (servo_paused_ == request->data)
+  {
+    std::string message = "Requested pause state is already active.";
+    RCLCPP_INFO(node_->get_logger(), "%s", message.c_str());
+    response->success = true;
+    response->message = message;
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(lock_);
   servo_paused_ = request->data;
   response->success = (servo_paused_ == request->data);
   if (servo_paused_)
@@ -160,12 +180,11 @@ void ServoNode::pauseServo(const std::shared_ptr<std_srvs::srv::SetBool::Request
   else
   {
     // Reset the smoothing plugin with the robot's current state in case the robot moved between pausing and unpausing.
-    last_commanded_state_ = servo_->getCurrentRobotState();
+    last_commanded_state_ = servo_->getCurrentRobotState(true /* block for current robot state */);
     servo_->resetSmoothing(last_commanded_state_);
 
     // clear out the command rolling window and reset last commanded state to be the current state
     joint_cmd_rolling_window_.clear();
-    last_commanded_state_ = servo_->getCurrentRobotState();
 
     // reactivate collision checking
     servo_->setCollisionChecking(true);
@@ -213,12 +232,23 @@ std::optional<KinematicState> ServoNode::processJointJogCommand(const moveit::co
   // Reject any other command types that had arrived simultaneously.
   new_twist_msg_ = new_pose_msg_ = false;
 
+  if (!latest_joint_jog_.displacements.empty())
+  {
+    RCLCPP_WARN(node_->get_logger(), "Joint jog command displacements field is not yet supported, ignoring.");
+    latest_joint_jog_.displacements.clear();  // Only warn once per message.
+  }
+
   const bool command_stale = (node_->now() - latest_joint_jog_.header.stamp) >=
                              rclcpp::Duration::from_seconds(servo_params_.incoming_command_timeout);
   if (!command_stale)
   {
     JointJogCommand command{ latest_joint_jog_.joint_names, latest_joint_jog_.velocities };
     next_joint_state = servo_->getNextJointState(robot_state, command);
+    // If the command failed, stop trying to process this message
+    if (servo_->getStatus() == StatusCode::INVALID)
+    {
+      new_joint_jog_msg_ = false;
+    }
   }
   else
   {
@@ -251,6 +281,10 @@ std::optional<KinematicState> ServoNode::processTwistCommand(const moveit::core:
                                                latest_twist_.twist.angular.y, latest_twist_.twist.angular.z };
     const TwistCommand command{ latest_twist_.header.frame_id, velocities };
     next_joint_state = servo_->getNextJointState(robot_state, command);
+    if (servo_->getStatus() == StatusCode::INVALID)
+    {
+      new_twist_msg_ = false;
+    }
   }
   else
   {
@@ -280,6 +314,10 @@ std::optional<KinematicState> ServoNode::processPoseCommand(const moveit::core::
   {
     const PoseCommand command = poseFromPoseStamped(latest_pose_);
     next_joint_state = servo_->getNextJointState(robot_state, command);
+    if (servo_->getStatus() == StatusCode::INVALID)
+    {
+      new_pose_msg_ = false;
+    }
   }
   else
   {
@@ -301,16 +339,24 @@ void ServoNode::servoLoop()
   std::optional<KinematicState> next_joint_state = std::nullopt;
   rclcpp::WallRate servo_frequency(1 / servo_params_.publish_period);
 
-  // wait for first robot joint state update
   const auto servo_node_start = node_->now();
-  while (planning_scene_monitor_->getLastUpdateTime().get_clock_type() != node_->get_clock()->get_clock_type() ||
-         servo_node_start > planning_scene_monitor_->getLastUpdateTime())
+
+  // convert_clock_type() is used in case planning_scene_monitor uses RCL_SYSTEM_TIME
+  // while Servo uses RCL_ROS_TIME
+  while (servo_node_start >
+         convertClockType(planning_scene_monitor_->getLastUpdateTime(), servo_node_start.get_clock_type()))
+  {
+    RCLCPP_INFO(node_->get_logger(), "Waiting for planning scene monitor to receive robot state update.");
+    rclcpp::sleep_for(std::chrono::seconds(1));
+  }
   {
     RCLCPP_INFO(node_->get_logger(), "Waiting to receive robot state update.");
     rclcpp::sleep_for(std::chrono::seconds(1));
   }
-  KinematicState current_state = servo_->getCurrentRobotState();
+  KinematicState current_state = servo_->getCurrentRobotState(true /* block for current robot state */);
   last_commanded_state_ = current_state;
+  // Ensure the filter is up to date
+  servo_->resetSmoothing(current_state);
 
   // Get the robot state and joint model group info.
   moveit::core::RobotStatePtr robot_state = planning_scene_monitor_->getStateMonitor()->getCurrentState();
@@ -322,79 +368,84 @@ void ServoNode::servoLoop()
     // Skip processing if servoing is disabled.
     if (servo_paused_)
     {
+      servo_->resetSmoothing(current_state);
       servo_frequency.sleep();
       continue;
     }
 
-    const bool use_trajectory = servo_params_.command_out_type == "trajectory_msgs/JointTrajectory";
-    const auto cur_time = node_->now();
+    {  // scope for mutex-protected operations
+      std::lock_guard<std::mutex> lock_guard(lock_);
+      const bool use_trajectory = servo_params_.command_out_type == "trajectory_msgs/JointTrajectory";
+      const auto cur_time = node_->now();
 
-    if (use_trajectory && !joint_cmd_rolling_window_.empty() && joint_cmd_rolling_window_.back().time_stamp > cur_time)
-    {
-      current_state = joint_cmd_rolling_window_.back();
-    }
-    else
-    {
-      // if all joint_cmd_rolling_window_ is empty or all commands in it are outdated, use current robot state
-      joint_cmd_rolling_window_.clear();
-      current_state = servo_->getCurrentRobotState();
-      current_state.velocities *= 0.0;
-    }
-
-    // update robot state values
-    robot_state->setJointGroupPositions(joint_model_group, current_state.positions);
-    robot_state->setJointGroupVelocities(joint_model_group, current_state.velocities);
-
-    next_joint_state = std::nullopt;
-    const CommandType expected_type = servo_->getCommandType();
-
-    if (expected_type == CommandType::JOINT_JOG && new_joint_jog_msg_)
-    {
-      next_joint_state = processJointJogCommand(robot_state);
-    }
-    else if (expected_type == CommandType::TWIST && new_twist_msg_)
-    {
-      next_joint_state = processTwistCommand(robot_state);
-    }
-    else if (expected_type == CommandType::POSE && new_pose_msg_)
-    {
-      next_joint_state = processPoseCommand(robot_state);
-    }
-    else if (new_joint_jog_msg_ || new_twist_msg_ || new_pose_msg_)
-    {
-      new_joint_jog_msg_ = new_twist_msg_ = new_pose_msg_ = false;
-      RCLCPP_WARN_STREAM(node_->get_logger(), "Command type has not been set, cannot accept input");
-    }
-
-    if (next_joint_state && (servo_->getStatus() != StatusCode::INVALID) &&
-        (servo_->getStatus() != StatusCode::HALT_FOR_COLLISION))
-    {
-      if (use_trajectory)
+      if (use_trajectory && !joint_cmd_rolling_window_.empty() && joint_cmd_rolling_window_.back().time_stamp > cur_time)
       {
-        auto& next_joint_state_value = next_joint_state.value();
-        updateSlidingWindow(next_joint_state_value, joint_cmd_rolling_window_, servo_params_.max_expected_latency,
-                            cur_time);
-        if (const auto msg = composeTrajectoryMessage(servo_params_, joint_cmd_rolling_window_))
-        {
-          trajectory_publisher_->publish(msg.value());
-        }
+        current_state = joint_cmd_rolling_window_.back();
       }
       else
       {
-        multi_array_publisher_->publish(composeMultiArrayMessage(servo_->getParams(), next_joint_state.value()));
+        // if all joint_cmd_rolling_window_ is empty or all commands in it are outdated, use current robot state
+        joint_cmd_rolling_window_.clear();
+        current_state = servo_->getCurrentRobotState(false /* block for current robot state */);
+        current_state.velocities *= 0.0;
       }
-      last_commanded_state_ = next_joint_state.value();
-    }
-    else
-    {
-      // if no new command was created, use current robot state
-      updateSlidingWindow(current_state, joint_cmd_rolling_window_, servo_params_.max_expected_latency, cur_time);
-      servo_->resetSmoothing(current_state);
-    }
 
-    status_msg.code = static_cast<int8_t>(servo_->getStatus());
-    status_msg.message = servo_->getStatusMessage();
-    status_publisher_->publish(status_msg);
+      // update robot state values
+      robot_state->setJointGroupPositions(joint_model_group, current_state.positions);
+      robot_state->setJointGroupVelocities(joint_model_group, current_state.velocities);
+
+      next_joint_state = std::nullopt;
+      const CommandType expected_type = servo_->getCommandType();
+
+      if (expected_type == CommandType::JOINT_JOG && new_joint_jog_msg_)
+      {
+        next_joint_state = processJointJogCommand(robot_state);
+      }
+      else if (expected_type == CommandType::TWIST && new_twist_msg_)
+      {
+        next_joint_state = processTwistCommand(robot_state);
+      }
+      else if (expected_type == CommandType::POSE && new_pose_msg_)
+      {
+        next_joint_state = processPoseCommand(robot_state);
+      }
+      else if (new_joint_jog_msg_ || new_twist_msg_ || new_pose_msg_)
+      {
+        new_joint_jog_msg_ = new_twist_msg_ = new_pose_msg_ = false;
+        RCLCPP_WARN_STREAM(node_->get_logger(), "Command type has not been set, cannot accept input");
+      }
+
+      if (next_joint_state && (servo_->getStatus() != StatusCode::INVALID) &&
+          (servo_->getStatus() != StatusCode::HALT_FOR_COLLISION))
+      {
+        if (use_trajectory)
+        {
+          auto& next_joint_state_value = next_joint_state.value();
+          updateSlidingWindow(next_joint_state_value, joint_cmd_rolling_window_, servo_params_.max_expected_latency,
+                              cur_time);
+          if (const auto msg = composeTrajectoryMessage(servo_params_, joint_cmd_rolling_window_))
+          {
+            trajectory_publisher_->publish(msg.value());
+          }
+        }
+        else
+        {
+          multi_array_publisher_->publish(composeMultiArrayMessage(servo_->getParams(), next_joint_state.value()));
+        }
+        last_commanded_state_ = next_joint_state.value();
+      }
+      else
+      {
+        // if no new command was created, use current robot state
+        last_commanded_state_ = current_state = servo_->getCurrentRobotState(false);
+        updateSlidingWindow(current_state, joint_cmd_rolling_window_, servo_params_.max_expected_latency, cur_time);
+        servo_->resetSmoothing(current_state);
+      }
+
+      status_msg.code = static_cast<int8_t>(servo_->getStatus());
+      status_msg.message = servo_->getStatusMessage();
+      status_publisher_->publish(status_msg);
+    }
 
     servo_frequency.sleep();
   }

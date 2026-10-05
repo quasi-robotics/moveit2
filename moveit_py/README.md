@@ -18,7 +18,7 @@ We are continuing to add tutorials for the MoveIt 2 Python library. Of particula
 ## Contribution Guidelines
 Community contributions are welcome.
 
-For detailed contribution guidelines please consult the official [MoveIt contribution guidelines](https://moveit.ros.org/documentation/contributing/).
+For detailed contribution guidelines please consult the official [MoveIt contribution guidelines](https://moveit.ai/documentation/contributing/).
 
 ## Citing the Library
 If you use this library in your work please use the following citation:
@@ -26,7 +26,7 @@ If you use this library in your work please use the following citation:
 @software{fagan2023moveitpy,
   author = {Fagan, Peter David},
   title = {{MoveIt 2 Python Library: A Software Library for Robotics Education and Research}},
-  url = {https://github.com/ros-planning/moveit2/tree/main/moveit_py},
+  url = {https://github.com/moveit/moveit2/tree/main/moveit_py},
   year = {2023}
 }
 ```

@@ -2,6 +2,53 @@
 Changelog for package moveit_planners
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+
+2.15.1 (2026-08-29)
+-------------------
+
+2.15.0 (2026-08-12)
+-------------------
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Contributors: Shivam Maurya
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+
+2.13.0 (2025-02-15)
+-------------------
+* fix chomp inclued, closes `#3228 <https://github.com/ros-planning/moveit2/issues/3228>`_ (`#3229 <https://github.com/ros-planning/moveit2/issues/3229>`_)
+* Contributors: Michael Ferguson
+
+2.12.0 (2024-11-29)
+-------------------
+* have moveit_planners depend on chomp (`#3015 <https://github.com/ros-planning/moveit2/issues/3015>`_)
+* Contributors: Michael Ferguson
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Robert Haschke, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Merge branch 'main' into dependabot/github_actions/SonarSource/sonarcloud-github-c-cpp-2

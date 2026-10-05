@@ -36,13 +36,13 @@
    Desc: Response adapter to display the motion path in RVIZ by publishing as EE pose marker array via ROS topic.
 */
 
-#include <moveit/planning_interface/planning_response_adapter.h>
-#include <moveit/robot_state/conversions.h>
+#include <moveit/planning_interface/planning_response_adapter.hpp>
+#include <moveit/robot_state/conversions.hpp>
 #include <class_loader/class_loader.hpp>
 #include <moveit/utils/logger.hpp>
 #include <moveit_msgs/msg/display_trajectory.hpp>
 
-#include <default_response_adapter_parameters.hpp>
+#include <moveit_ros_planning/default_response_adapter_parameters.hpp>
 
 namespace default_planning_response_adapters
 {
@@ -57,6 +57,8 @@ public:
   DisplayMotionPath() : logger_(moveit::getLogger("moveit.ros.display_motion_path"))
   {
   }
+
+  ~DisplayMotionPath() override = default;
 
   void initialize(const rclcpp::Node::SharedPtr& node, const std::string& parameter_namespace) override
   {

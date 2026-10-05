@@ -37,8 +37,8 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <filesystem>
 #include <fstream>
-#include <moveit/ompl_interface/detail/constrained_sampler.h>
-#include <moveit/ompl_interface/detail/constraints_library.h>
+#include <moveit/ompl_interface/detail/constrained_sampler.hpp>
+#include <moveit/ompl_interface/detail/constraints_library.hpp>
 #include <moveit/utils/logger.hpp>
 
 #include <ompl/tools/config/SelfConfig.h>
@@ -158,7 +158,9 @@ public:
       space_->interpolate(near, state_storage_->getState(index), d / dist, state);
     }
     else
+    {
       space_->copyState(state, state_storage_->getState(index));
+    }
   }
 
   void sampleGaussian(ob::State* state, const ob::State* mean, const double stdDev) override
@@ -455,7 +457,9 @@ ConstraintApproximationConstructionResults ConstraintsLibrary::addConstraintAppr
     res.approx = constraint_approx;
   }
   else
+  {
     RCLCPP_ERROR(getLogger(), "Unable to construct constraint approximation for group '%s'", group.c_str());
+  }
   return res;
 }
 

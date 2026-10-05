@@ -40,13 +40,19 @@
 
 #include <chrono>
 #include <control_msgs/msg/joint_jog.hpp>
+#include <cstdint>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <moveit_msgs/srv/servo_command_type.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <signal.h>
 #include <stdio.h>
+#ifndef WIN32
 #include <termios.h>
 #include <unistd.h>
+#else
+#include <conio.h>
+#endif
 
 // Define used keys
 namespace
@@ -88,6 +94,7 @@ class KeyboardReader
 public:
   KeyboardReader() : file_descriptor_(0)
   {
+#ifndef WIN32
     // get the console in raw mode
     tcgetattr(file_descriptor_, &cooked_);
     struct termios raw;
@@ -97,23 +104,32 @@ public:
     raw.c_cc[VEOL] = 1;
     raw.c_cc[VEOF] = 2;
     tcsetattr(file_descriptor_, TCSANOW, &raw);
+#endif
   }
   void readOne(char* c)
   {
+#ifndef WIN32
     int rc = read(file_descriptor_, c, 1);
     if (rc < 0)
     {
       throw std::runtime_error("read failed");
     }
+#else
+    *c = static_cast<char>(_getch());
+#endif
   }
   void shutdown()
   {
+#ifndef WIN32
     tcsetattr(file_descriptor_, TCSANOW, &cooked_);
+#endif
   }
 
 private:
   int file_descriptor_;
+#ifndef WIN32
   struct termios cooked_;
+#endif
 };
 
 // Converts key-presses to Twist or Jog commands for Servo, in lieu of a controller
@@ -174,9 +190,11 @@ int main(int argc, char** argv)
 
 void KeyboardServo::spin()
 {
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(nh_);
   while (rclcpp::ok())
   {
-    rclcpp::spin_some(nh_);
+    executor.spin_some();
   }
 }
 

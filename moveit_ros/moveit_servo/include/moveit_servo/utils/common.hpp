@@ -41,11 +41,11 @@
 
 #pragma once
 
-#include <moveit_servo_lib_parameters.hpp>
+#include <moveit_servo/moveit_servo_lib_parameters.hpp>
 #include <moveit_servo/utils/datatypes.hpp>
-#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
-#include <moveit/robot_model/joint_model_group.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.hpp>
+#include <moveit/robot_model/joint_model_group.hpp>
+#include <moveit/robot_state/robot_state.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -135,11 +135,17 @@ void updateSlidingWindow(KinematicState& next_joint_state, std::deque<KinematicS
                          double max_expected_latency, const rclcpp::Time& cur_time);
 
 /**
- * \brief Create a Float64MultiArray message from given joint state
- * @param servo_params The configuration used by servo, required for selecting position vs velocity.
- * @param joint_state The joint state to be added into the Float64MultiArray.
- * @return The Float64MultiArray message.
+ * \brief Create a Float64MultiArray message from the given joint state.
+ *
+ * This function converts the joint state into a std_msgs::msg::Float64MultiArray message
+ * based on the configuration in the Servo parameters. It supports both position and
+ * velocity command modes, depending on the controller configuration.
+ *
+ * @param servo_params Configuration parameters used by Servo (e.g., command type: position or velocity).
+ * @param joint_state The current joint state to be converted into a Float64MultiArray message.
+ * @return The resulting Float64MultiArray message containing joint commands.
  */
+
 std_msgs::msg::Float64MultiArray composeMultiArrayMessage(const servo::Params& servo_params,
                                                           const KinematicState& joint_state);
 
@@ -166,15 +172,16 @@ double jointLimitVelocityScalingFactor(const Eigen::VectorXd& velocities,
                                        const moveit::core::JointBoundsVector& joint_bounds, double scaling_override);
 
 /**
- * \brief Finds the joints that are exceeding allowable position limits.
+ * \brief Finds the joint variable indices corresponding to joints exceeding allowable position limits.
  * @param positions The joint positions.
  * @param velocities The current commanded velocities.
  * @param joint_bounds The allowable limits for the robot joints.
  * @param margins Additional buffer on the actual joint limits.
- * @return The joints that are violating the specified position limits.
+ * @return The joint variable indices that violate the specified position limits.
  */
-std::vector<int> jointsToHalt(const Eigen::VectorXd& positions, const Eigen::VectorXd& velocities,
-                              const moveit::core::JointBoundsVector& joint_bounds, const std::vector<double>& margins);
+std::vector<size_t> jointVariablesToHalt(const Eigen::VectorXd& positions, const Eigen::VectorXd& velocities,
+                                         const moveit::core::JointBoundsVector& joint_bounds,
+                                         const std::vector<double>& margins);
 
 /**
  * \brief Helper function for converting Eigen::Isometry3d to geometry_msgs/TransformStamped.

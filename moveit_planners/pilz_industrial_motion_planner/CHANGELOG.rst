@@ -2,6 +2,86 @@
 Changelog for package pilz_industrial_motion_planner
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+* Cleanup boost dependencies
+* Fix clang-tidy issues
+* Contributors: Robert Haschke
+
+2.15.1 (2026-08-29)
+-------------------
+* Fix CI on Ubuntu 26.04 (`#3818 <https://github.com/moveit/moveit2/issues/3818>`_)
+* Avoid using deprecated FindBoost.cmake module
+* Contributors: Robert Haschke
+
+2.15.0 (2026-08-12)
+-------------------
+* resolute: add explicit <cstdint> / <fstream> includes for GCC 15 (`#3754 <https://github.com/moveit/moveit2/issues/3754>`_)
+* resolute: GCC 15 / C++20 / rviz API build fixes, and octomap -Werror=cpp suppression (`#3760 <https://github.com/moveit/moveit2/issues/3760>`_)
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* [macOS] Fix compilation and linking issues in MoveIt2 (`#3631 <https://github.com/moveit/moveit2/issues/3631>`_)
+* use offset in polyline (`#3632 <https://github.com/moveit/moveit2/issues/3632>`_)
+* Feature: New POLYLINE command in Pilz planner for space trajectory generation (`#3610 <https://github.com/moveit/moveit2/issues/3610>`_)
+* Contributors: Aiman Taher Abdulmwala Haidar, Dhruv Patel, Nathan Brooks, Shivam Maurya, Stephanie Eng
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* Ports moveit1 `#3689 <https://github.com/ros-planning/moveit/issues/3689>`_ (`#3357 <https://github.com/ros-planning/moveit2/issues/3357>`_)
+  * Publish planning scene while planning (`#3689 <https://github.com/ros-planning/moveit/issues/3689>`_)
+* Contributors: Mark Johnson
+
+2.13.0 (2025-02-15)
+-------------------
+* Update includes for generate_parameter_library 0.4.0 (`#3255 <https://github.com/ros-planning/moveit2/issues/3255>`_)
+* pilz_industrial_motion_planner: Use tf2::fromMsg instead of tf2::convert (`#3219 <https://github.com/ros-planning/moveit2/issues/3219>`_)
+* Use ! in place of not keyword for Pilz and CHOMP planners (`#3217 <https://github.com/ros-planning/moveit2/issues/3217>`_)
+* Update deprecated tf2 imports from .h to .hpp (`#3197 <https://github.com/ros-planning/moveit2/issues/3197>`_)
+* Contributors: Sebastian Castro, Silvio Traversaro
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Fix: Resolve race condition in MoveGroupSequenceAction (`#3125 <https://github.com/ros-planning/moveit2/issues/3125>`_)
+* Fixes pilz tests (`#3095 <https://github.com/ros-planning/moveit2/issues/3095>`_)
+* Allow RobotState::setFromIK to work with subframes (`#3077 <https://github.com/ros-planning/moveit2/issues/3077>`_)
+* Enhancement/ports moveit 3522 (`#3070 <https://github.com/ros-planning/moveit2/issues/3070>`_)
+* Ports moveit/moveit/pull/3519 to ros2 (`#3055 <https://github.com/ros-planning/moveit2/issues/3055>`_)
+* Enhancement/moveit ros1 ports (`#3041 <https://github.com/ros-planning/moveit2/issues/3041>`_)
+* Contributors: Maxwell.L, Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+* Fix Pilz blending times... the right way (`#2961 <https://github.com/moveit/moveit2/issues/2961>`_)
+* Deduplicate joint trajectory points in Pilz Move Group Sequence capability (`#2943 <https://github.com/moveit/moveit2/issues/2943>`_)
+* Contributors: Chris Schindlbeck, Sebastian Castro
+
+2.10.0 (2024-06-13)
+-------------------
+* Apply clang-tidy fixes
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* Add parameter api integration test (`#2662 <https://github.com/moveit/moveit2/issues/2662>`_)
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Robert Haschke, Sebastian Jahr, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Node logging for the rest of MoveIt (`#2599 <https://github.com/ros-planning/moveit2/issues/2599>`_)

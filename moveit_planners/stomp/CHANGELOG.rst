@@ -2,6 +2,73 @@
 Changelog for package moveit_planners_stomp
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+
+2.15.1 (2026-08-29)
+-------------------
+
+2.15.0 (2026-08-12)
+-------------------
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* Contributors: Nathan Brooks
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* Add `stomp` target link to `moveit_planners_stomp` tests (`#3437 <https://github.com/ros-planning/moveit2/issues/3437>`_)
+* Contributors: Bckempa
+
+2.13.0 (2025-02-15)
+-------------------
+* Update includes for generate_parameter_library 0.4.0 (`#3255 <https://github.com/ros-planning/moveit2/issues/3255>`_)
+* Fix passing different types to std::min in cost_functions.hpp (`#3244 <https://github.com/ros-planning/moveit2/issues/3244>`_)
+* Contributors: Sebastian Castro, Silvio Traversaro
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Contributors: Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* missing destination path (`#2668 <https://github.com/moveit/moveit2/issues/2668>`_)
+* Fix penalty-based cost function in STOMP (`#2625 <https://github.com/moveit/moveit2/issues/2625>`_)
+  * Fix penalty-based cost function in STOMP
+  This adds several test cases for STOMP's noise generation and cost
+  functions, and provides the following fixes:
+  * out-of-bounds vector access when tail states of trajectory are invalid
+  * smoothed costs overriding values of previous invalid groups
+  * missing validity check of last state in trajectory
+  * inability to disable cost function interpolation steps
+  * total cost of trajectory not summing up to sum of state penalties
+  * bug in Gaussian producing infinite values with invalid start states
+  * Improve documentation
+  ---------
+* Contributors: Henning Kayser, Robert Haschke, Sarvajith Adyanthaya, Sebastian Jahr, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Node logging for the rest of MoveIt (`#2599 <https://github.com/ros-planning/moveit2/issues/2599>`_)

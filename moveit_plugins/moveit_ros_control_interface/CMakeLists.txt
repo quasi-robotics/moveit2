@@ -18,14 +18,23 @@ moveit_package()
 # Finds Boost Components
 include(ConfigExtras.cmake)
 
+set(CONTROL_INTERFACE_LINK_DEPS
+    rclcpp_action::rclcpp_action
+    ${controller_manager_msgs_TARGETS}
+    moveit_core::moveit_core
+    moveit_simple_controller_manager::moveit_simple_controller_manager
+    pluginlib::pluginlib
+    ${trajectory_msgs_TARGETS}
+    Boost::headers)
+
 add_library(moveit_ros_control_interface_plugin SHARED
             src/controller_manager_plugin.cpp)
 set_target_properties(
   moveit_ros_control_interface_plugin
   PROPERTIES VERSION "${moveit_ros_control_interface_VERSION}")
 target_include_directories(moveit_ros_control_interface_plugin PRIVATE include)
-ament_target_dependencies(moveit_ros_control_interface_plugin
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS} Boost)
+target_link_libraries(moveit_ros_control_interface_plugin
+                      ${CONTROL_INTERFACE_LINK_DEPS})
 
 add_library(moveit_ros_control_interface_trajectory_plugin SHARED
             src/joint_trajectory_controller_plugin.cpp)
@@ -34,18 +43,28 @@ set_target_properties(
   PROPERTIES VERSION "${moveit_ros_control_interface_VERSION}")
 target_include_directories(moveit_ros_control_interface_trajectory_plugin
                            PRIVATE include)
-ament_target_dependencies(moveit_ros_control_interface_trajectory_plugin
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS} Boost)
+target_link_libraries(moveit_ros_control_interface_trajectory_plugin
+                      ${CONTROL_INTERFACE_LINK_DEPS})
 
 add_library(moveit_ros_control_interface_gripper_plugin SHARED
-            src/gripper_controller_plugin.cpp)
+            src/gripper_command_controller_plugin.cpp)
 set_target_properties(
   moveit_ros_control_interface_gripper_plugin
   PROPERTIES VERSION "${moveit_ros_control_interface_VERSION}")
 target_include_directories(moveit_ros_control_interface_gripper_plugin
                            PRIVATE include)
-ament_target_dependencies(moveit_ros_control_interface_gripper_plugin
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS} Boost)
+target_link_libraries(moveit_ros_control_interface_gripper_plugin
+                      ${CONTROL_INTERFACE_LINK_DEPS})
+
+add_library(moveit_ros_control_interface_parallel_gripper_plugin SHARED
+            src/parallel_gripper_command_controller_plugin.cpp)
+set_target_properties(
+  moveit_ros_control_interface_parallel_gripper_plugin
+  PROPERTIES VERSION "${moveit_ros_control_interface_VERSION}")
+target_include_directories(moveit_ros_control_interface_parallel_gripper_plugin
+                           PRIVATE include)
+target_link_libraries(moveit_ros_control_interface_parallel_gripper_plugin
+                      ${CONTROL_INTERFACE_LINK_DEPS})
 
 add_library(moveit_ros_control_interface_empty_plugin SHARED
             src/empty_controller_plugin.cpp)
@@ -54,8 +73,12 @@ set_target_properties(
   PROPERTIES VERSION "${moveit_ros_control_interface_VERSION}")
 target_include_directories(moveit_ros_control_interface_empty_plugin
                            PRIVATE include)
-ament_target_dependencies(moveit_ros_control_interface_empty_plugin
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS} Boost)
+target_link_libraries(moveit_ros_control_interface_empty_plugin
+                      ${CONTROL_INTERFACE_LINK_DEPS})
+
+if(BUILD_TESTING)
+  add_subdirectory(test)
+endif()
 
 # ##############################################################################
 # Install ##
@@ -65,11 +88,19 @@ set(TARGET_LIBRARIES
     moveit_ros_control_interface_plugin
     moveit_ros_control_interface_trajectory_plugin
     moveit_ros_control_interface_gripper_plugin
+    moveit_ros_control_interface_parallel_gripper_plugin
     moveit_ros_control_interface_empty_plugin)
+
+# Create an umbrella INTERFACE target so downstream packages can use
+# moveit_ros_control_interface::moveit_ros_control_interface to link all
+# libraries at once.
+add_library(moveit_ros_control_interface INTERFACE)
+target_link_libraries(moveit_ros_control_interface
+                      INTERFACE ${TARGET_LIBRARIES})
 
 # Mark executables and/or libraries for installation
 install(
-  TARGETS ${TARGET_LIBRARIES}
+  TARGETS moveit_ros_control_interface ${TARGET_LIBRARIES}
   EXPORT moveit_ros_control_interfaceTargets
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib

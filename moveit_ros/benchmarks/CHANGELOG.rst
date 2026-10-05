@@ -2,6 +2,80 @@
 Changelog for package moveit_ros_benchmarks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+* Fix clang-tidy issues
+* Contributors: Robert Haschke
+
+2.15.1 (2026-08-29)
+-------------------
+* Fix CI on Ubuntu 26.04 (`#3818 <https://github.com/moveit/moveit2/issues/3818>`_)
+* Avoid using deprecated FindBoost.cmake module
+* Contributors: Robert Haschke
+
+2.15.0 (2026-08-12)
+-------------------
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* (rolling)  Fix moveit_ros_benchmarks compile fail (`#3593 <https://github.com/moveit/moveit2/issues/3593>`_)
+* Contributors: Nathan Brooks, Shivam Maurya, mosfet80
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+
+2.13.0 (2025-02-15)
+-------------------
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Add use_padding flag + deprecate checkCollisionUnpadded() functions (`#3088 <https://github.com/ros-planning/moveit2/issues/3088>`_)
+* Contributors: Sebastian Jahr, Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Fix CI for Rolling / Ubuntu Noble (`#2793 <https://github.com/moveit/moveit2/issues/2793>`_)
+  * docker.yaml: Enable caching
+  * [TEMP] moveit2_rolling.repos: add not yet released packages
+  * Skip broken ci-testing image: osrf/ros2:testing doesn't contain /opt/ros!
+  * use boost::timer::progress_display if available
+  check for header to stay compatible with ubuntu 20.04.
+  Support boost >= 1.83
+  Slightly ugly due to the double alias, but boost::timer was a class
+  before 1.72, so using `boost::timer::progress_display` in the code
+  breaks with older versions.
+  * cherry-pick of `#3547 <https://github.com/moveit/moveit2/issues/3547>`_ from MoveIt1
+  * Tag ci image as ci-testing as well
+  ---------
+  Co-authored-by: Michael Görner <me@v4hn.de>
+  Co-authored-by: Sebastian Jahr <sebastian.jahr@picknik.ai>
+  Co-authored-by: Henning Kayser <henningkayser@picknik.ai>
+* Update deprecated include of boost/progress.hpp to boost/timer/progress_display.hpp (`#2811 <https://github.com/moveit/moveit2/issues/2811>`_)
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Robert Haschke, Sebastian Jahr, Stephanie Eng, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * [Planning Pipeline Refactoring] `#2 <https://github.com/ros-planning/moveit2/issues/2>`_ Enable chaining planners (`#2457 <https://github.com/ros-planning/moveit2/issues/2457>`_)

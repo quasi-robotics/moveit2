@@ -2,6 +2,86 @@
 Changelog for package moveit_ros_visualization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+* Fix clang-tidy issues
+* Contributors: Robert Haschke
+
+2.15.1 (2026-08-29)
+-------------------
+* Modernize Qt signal-slot connections to use function pointers (`#3823 <https://github.com/moveit/moveit2/issues/3823>`_)
+* Fix CI on Ubuntu 26.04 (`#3818 <https://github.com/moveit/moveit2/issues/3818>`_)
+* Address review comments
+* Avoid using deprecated FindBoost.cmake module
+* Contributors: Christian Rauch, Robert Haschke
+
+2.15.0 (2026-08-12)
+-------------------
+* resolute: add explicit <cstdint> / <fstream> includes for GCC 15 (`#3754 <https://github.com/moveit/moveit2/issues/3754>`_)
+* resolute: GCC 15 / C++20 / rviz API build fixes, and octomap -Werror=cpp suppression (`#3760 <https://github.com/moveit/moveit2/issues/3760>`_)
+* Fix rviz Qt6 threshold: 15.1 -> 15.1.14 (`#3807 <https://github.com/moveit/moveit2/issues/3807>`_)
+  Corrects the gate added in #3707: rviz_common 15.1.0-15.1.13 are still Qt5.
+* docs: Updated remaining links from moveit.ros.org to moveit.ai (`#3740 <https://github.com/moveit/moveit2/issues/3740>`_)
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* CMake: remove boost system (`#3727 <https://github.com/moveit/moveit2/issues/3727>`_)
+* Use Qt6 on Rolling and newer distros (`#3707 <https://github.com/moveit/moveit2/issues/3707>`_)
+  rviz switched to Qt6 in rviz_common 15.1.14. Downstream rviz plugins must build
+  against the same Qt major version as the rviz they link.
+* Fix deprecations in image_common and tf2_ros (`#3567 <https://github.com/moveit/moveit2/issues/3567>`_)
+* Contributors: Guilhem Saurel, Nathan Brooks, Shivam Maurya
+
+2.14.1 (2025-09-09)
+-------------------
+* Initialize the namespace property for custom iMarkers in rviz (`#3547 <https://github.com/moveit/moveit2/issues/3547>`_)
+* Include mutex header for usage of scoped_lock (`#3532 <https://github.com/moveit/moveit2/issues/3532>`_)
+  Since std::scoped_lock is used in the implementations, the header
+  defining this should be included.
+* Contributors: Erik Holum, Felix Exner (fexner)
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* Planning scene monitor: reliable QoS (`#3400 <https://github.com/ros-planning/moveit2/issues/3400>`_)
+* Respect robot alpha value in trail trajectory visual (`#3353 <https://github.com/ros-planning/moveit2/issues/3353>`_)
+* Contributors: Aleksey Nogin, Florian Beck, Mark Johnson
+
+2.13.0 (2025-02-15)
+-------------------
+* Use attached object colors as is in Rviz plugin (`#3274 <https://github.com/ros-planning/moveit2/issues/3274>`_)
+* Fix MeshShape::clear() for safer mesh removal (`#3164 <https://github.com/ros-planning/moveit2/issues/3164>`_)
+* Contributors: Aleksey Nogin, Matt Wang
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Attached Collision Object Transparency (`#3093 <https://github.com/ros-planning/moveit2/issues/3093>`_)
+* Contributors: Aiden, Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+* New implementation for computeCartesianPath() (`#2916 <https://github.com/moveit/moveit2/issues/2916>`_)
+* Contributors: Robert Haschke
+
+2.10.0 (2024-06-13)
+-------------------
+* Migrate ros-planning org to moveit (`#2847 <https://github.com/moveit/moveit2/issues/2847>`_)
+  * Rename github.com/ros-planning -> github.com/moveit
+  * Rename ros-planning.github.io -> moveit.github.io
+  * Rename ros-planning organization in docker and CI workflow files
+  - ghcr.io/ros-planning -> ghcr.io/moveit
+  - github.repository == 'moveit/*''
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Henning Kayser, Robert Haschke, Sebastian Jahr, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Node logging for the rest of MoveIt (`#2599 <https://github.com/ros-planning/moveit2/issues/2599>`_)

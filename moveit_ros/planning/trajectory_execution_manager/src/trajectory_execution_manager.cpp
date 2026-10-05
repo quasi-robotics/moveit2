@@ -34,11 +34,15 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/trajectory_execution_manager/trajectory_execution_manager.h>
-#include <moveit/robot_state/robot_state.h>
+#include <moveit/trajectory_execution_manager/trajectory_execution_manager.hpp>
+#include <moveit/robot_state/robot_state.hpp>
+#include <moveit/robot_trajectory/robot_trajectory.hpp>
 #include <geometric_shapes/check_isometry.h>
+#include <memory>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <moveit/utils/logger.hpp>
+
+#include <rclcpp/qos.hpp>
 
 namespace trajectory_execution_manager
 {
@@ -51,6 +55,7 @@ static const double DEFAULT_CONTROLLER_GOAL_DURATION_MARGIN = 0.5;  // allow 0.5
                                                                     // after scaling)
 static const double DEFAULT_CONTROLLER_GOAL_DURATION_SCALING =
     1.1;  // allow the execution of a trajectory to take more time than expected (scaled by a value > 1)
+static const bool DEFAULT_CONTROL_MULTI_DOF_JOINT_VARIABLES = false;
 
 TrajectoryExecutionManager::TrajectoryExecutionManager(const rclcpp::Node::SharedPtr& node,
                                                        const moveit::core::RobotModelConstPtr& robot_model,
@@ -96,13 +101,12 @@ void TrajectoryExecutionManager::initialize()
   execution_duration_monitoring_ = true;
   execution_velocity_scaling_ = 1.0;
   allowed_start_tolerance_ = 0.01;
+  allowed_start_tolerance_joints_.clear();
   wait_for_trajectory_completion_ = true;
+  control_multi_dof_joint_variables_ = DEFAULT_CONTROL_MULTI_DOF_JOINT_VARIABLES;
 
   allowed_execution_duration_scaling_ = DEFAULT_CONTROLLER_GOAL_DURATION_SCALING;
   allowed_goal_duration_margin_ = DEFAULT_CONTROLLER_GOAL_DURATION_MARGIN;
-
-  // load controller-specific values for allowed_execution_duration_scaling and allowed_goal_duration_margin
-  loadControllerParams();
 
   // load the controller manager plugin
   try
@@ -163,7 +167,8 @@ void TrajectoryExecutionManager::initialize()
         rclcpp::NodeOptions opt;
         opt.allow_undeclared_parameters(true);
         opt.automatically_declare_parameters_from_overrides(true);
-        controller_mgr_node_.reset(new rclcpp::Node("moveit_simple_controller_manager", opt));
+        controller_mgr_node_ =
+            std::make_shared<rclcpp::Node>("moveit_simple_controller_manager", node_->get_namespace(), opt);
 
         auto all_params = node_->get_node_parameters_interface()->get_parameter_overrides();
         for (const auto& param : all_params)
@@ -186,6 +191,10 @@ void TrajectoryExecutionManager::initialize()
 
   // other configuration steps
   reloadControllerInformation();
+
+  // load controller-specific values for allowed_execution_duration_scaling and allowed_goal_duration_margin
+  loadControllerParams();
+
   // The default callback group for rclcpp::Node is MutuallyExclusive which means we cannot call
   // receiveEvent while processing a different callback. To fix this we create a new callback group (the type is not
   // important since we only use it to process one callback) and associate event_topic_subscriber_ with this callback group
@@ -193,7 +202,7 @@ void TrajectoryExecutionManager::initialize()
   auto options = rclcpp::SubscriptionOptions();
   options.callback_group = callback_group;
   event_topic_subscriber_ = node_->create_subscription<std_msgs::msg::String>(
-      EXECUTION_EVENT_TOPIC, rclcpp::SystemDefaultsQoS(),
+      EXECUTION_EVENT_TOPIC, rclcpp::ServicesQoS(),
       [this](const std_msgs::msg::String::ConstSharedPtr& event) { return receiveEvent(event); }, options);
 
   controller_mgr_node_->get_parameter("trajectory_execution.execution_duration_monitoring",
@@ -203,6 +212,10 @@ void TrajectoryExecutionManager::initialize()
   controller_mgr_node_->get_parameter("trajectory_execution.allowed_goal_duration_margin",
                                       allowed_goal_duration_margin_);
   controller_mgr_node_->get_parameter("trajectory_execution.allowed_start_tolerance", allowed_start_tolerance_);
+  controller_mgr_node_->get_parameter("trajectory_execution.control_multi_dof_joint_variables",
+                                      control_multi_dof_joint_variables_);
+
+  initializeAllowedStartToleranceJoints();
 
   if (manage_controllers_)
   {
@@ -238,6 +251,10 @@ void TrajectoryExecutionManager::initialize()
       else if (name == "trajectory_execution.allowed_start_tolerance")
       {
         setAllowedStartTolerance(parameter.as_double());
+      }
+      else if (name.find("trajectory_execution.allowed_start_tolerance_joints.") == 0)
+      {
+        setAllowedStartToleranceJoint(name, parameter.as_double());
       }
       else if (name == "trajectory_execution.wait_for_trajectory_completion")
       {
@@ -383,8 +400,45 @@ bool TrajectoryExecutionManager::push(const moveit_msgs::msg::RobotTrajectory& t
     return false;
   }
 
+  // Optionally, convert multi dof waypoints to joint states and replace trajectory for execution
+  std::optional<moveit_msgs::msg::RobotTrajectory> replaced_trajectory;
+  if (control_multi_dof_joint_variables_ && !trajectory.multi_dof_joint_trajectory.points.empty())
+  {
+    // We convert the trajectory message into a RobotTrajectory first,
+    // since the conversion to a combined JointTrajectory depends on the local variables
+    // of the Multi-DOF joint types.
+    moveit::core::RobotState reference_state(robot_model_);
+    reference_state.setToDefaultValues();
+    robot_trajectory::RobotTrajectory tmp_trajectory(robot_model_);
+    tmp_trajectory.setRobotTrajectoryMsg(reference_state, trajectory);
+
+    // Combine all joints for filtering the joint trajectory waypoints
+    std::vector<std::string> all_trajectory_joints = trajectory.joint_trajectory.joint_names;
+    for (const auto& mdof_joint : trajectory.multi_dof_joint_trajectory.joint_names)
+    {
+      all_trajectory_joints.push_back(mdof_joint);
+    }
+
+    // Convert back to single joint trajectory including the MDOF joint variables, e.g. position/x, position/y, ...
+    const auto joint_trajectory =
+        robot_trajectory::toJointTrajectory(tmp_trajectory, true /* include_mdof_joints */, all_trajectory_joints);
+
+    // Check success of conversion
+    // This should never happen when using MoveIt's interfaces, but users can pass anything into TEM::push() directly
+    if (!joint_trajectory.has_value())
+    {
+      RCLCPP_ERROR(logger_, "Failed to convert multi-DOF trajectory to joint trajectory, aborting execution!");
+      return false;
+    }
+
+    // Create a new robot trajectory message that only contains the combined joint trajectory
+    RCLCPP_DEBUG(logger_, "Successfully converted multi-DOF trajectory to joint trajectory for execution.");
+    replaced_trajectory = moveit_msgs::msg::RobotTrajectory();
+    replaced_trajectory->joint_trajectory = joint_trajectory.value();
+  }
+
   TrajectoryExecutionContext* context = new TrajectoryExecutionContext();
-  if (configure(*context, trajectory, controllers))
+  if (configure(*context, replaced_trajectory.value_or(trajectory), controllers))
   {
     if (verbose_)
     {
@@ -491,7 +545,9 @@ void TrajectoryExecutionManager::updateControllerState(ControllerInformation& ci
     }
   }
   else if (verbose_)
+  {
     RCLCPP_INFO(logger_, "Information for controller '%s' is assumed to be up to date.", ci.name_.c_str());
+  }
 }
 
 void TrajectoryExecutionManager::updateControllersState(const rclcpp::Duration& age)
@@ -737,12 +793,12 @@ bool TrajectoryExecutionManager::distributeTrajectory(const moveit_msgs::msg::Ro
   std::set<std::string> actuated_joints_single;
   for (const std::string& joint_name : trajectory.joint_trajectory.joint_names)
   {
-    const moveit::core::JointModel* jm = robot_model_->getJointModel(joint_name);
+    const moveit::core::JointModel* jm = robot_model_->getJointOfVariable(joint_name);
     if (jm)
     {
       if (jm->isPassive() || jm->getMimic() != nullptr || jm->getType() == moveit::core::JointModel::FIXED)
         continue;
-      actuated_joints_single.insert(jm->getName());
+      actuated_joints_single.insert(joint_name);
     }
   }
 
@@ -871,10 +927,26 @@ bool TrajectoryExecutionManager::distributeTrajectory(const moveit_msgs::msg::Ro
 
 bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& context) const
 {
-  if (allowed_start_tolerance_ == 0)  // skip validation on this magic number
+  if (allowed_start_tolerance_ == 0 && allowed_start_tolerance_joints_.empty())  // skip validation on this magic number
     return true;
 
-  RCLCPP_INFO(logger_, "Validating trajectory with allowed_start_tolerance %g", allowed_start_tolerance_);
+  if (allowed_start_tolerance_joints_.empty())
+  {
+    RCLCPP_INFO_STREAM(logger_, "Validating trajectory with allowed_start_tolerance " << allowed_start_tolerance_);
+  }
+  else
+  {
+    std::ostringstream ss;
+    for (const auto& [joint_name, joint_start_tolerance] : allowed_start_tolerance_joints_)
+    {
+      if (ss.tellp() > 1)
+        ss << ", ";  // skip the comma at the end
+      ss << joint_name << ": " << joint_start_tolerance;
+    }
+    RCLCPP_INFO_STREAM(logger_, "Validating trajectory with allowed_start_tolerance "
+                                    << allowed_start_tolerance_ << " and allowed_start_tolerance_joints {" << ss.str()
+                                    << "}");
+  }
 
   moveit::core::RobotStatePtr current_state;
   if (!csm_->waitForCurrentState(node_->now()) || !(current_state = csm_->getCurrentState()))
@@ -882,7 +954,7 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
     RCLCPP_WARN(logger_, "Failed to validate trajectory: couldn't receive full current joint state within 1s");
     return false;
   }
-
+  moveit::core::RobotState reference_state(*current_state);
   for (const auto& trajectory : context.trajectory_parts_)
   {
     if (!trajectory.joint_trajectory.points.empty())
@@ -896,30 +968,48 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
         return false;
       }
 
-      for (std::size_t i = 0, end = joint_names.size(); i < end; ++i)
+      std::set<const moveit::core::JointModel*> joints;
+      for (const auto& joint_name : joint_names)
       {
-        const moveit::core::JointModel* jm = current_state->getJointModel(joint_names[i]);
+        const moveit::core::JointModel* jm = robot_model_->getJointOfVariable(joint_name);
         if (!jm)
         {
-          RCLCPP_ERROR_STREAM(logger_, "Unknown joint in trajectory: " << joint_names[i]);
+          RCLCPP_ERROR_STREAM(logger_, "Unknown joint in trajectory: " << joint_name);
           return false;
         }
 
-        double cur_position = current_state->getJointPositions(jm)[0];
-        double traj_position = positions[i];
-        // normalize positions and compare
-        jm->enforcePositionBounds(&cur_position);
-        jm->enforcePositionBounds(&traj_position);
-        if (jm->distance(&cur_position, &traj_position) > allowed_start_tolerance_)
+        joints.insert(jm);
+      }
+
+      // Copy all variable positions to reference state, and then compare start state joint distance within bounds
+      // Note on multi-DOF joints: Instead of comparing the translation and rotation distances like it's done for
+      // the multi-dof trajectory, this check will use the joint's internal distance implementation instead.
+      // This is more accurate, but may require special treatment for cases like the diff drive's turn path geometry.
+      reference_state.setVariablePositions(joint_names, positions);
+
+      for (const auto joint : joints)
+      {
+        const double joint_start_tolerance = getAllowedStartToleranceJoint(joint->getName());
+        reference_state.enforcePositionBounds(joint);
+        current_state->enforcePositionBounds(joint);
+        if (joint_start_tolerance != 0 && reference_state.distance(*current_state, joint) > joint_start_tolerance)
         {
           RCLCPP_ERROR(logger_,
-                       "\nInvalid Trajectory: start point deviates from current robot state more than %g"
-                       "\njoint '%s': expected: %g, current: %g",
-                       allowed_start_tolerance_, joint_names[i].c_str(), traj_position, cur_position);
+                       "Invalid Trajectory: start point deviates from current robot state more than %g at joint '%s'."
+                       "\nEnable DEBUG for detailed state info.",
+                       joint_start_tolerance, joint->getName().c_str());
+          RCLCPP_DEBUG(logger_, "| Joint | Expected | Current |");
+          for (const auto& joint_name : joint_names)
+          {
+            RCLCPP_DEBUG(logger_, "| %s | %g | %g |", joint_name.c_str(),
+                         reference_state.getVariablePosition(joint_name),
+                         current_state->getVariablePosition(joint_name));
+          }
           return false;
         }
       }
     }
+
     if (!trajectory.multi_dof_joint_trajectory.points.empty())
     {
       // Check multi-dof trajectory
@@ -952,10 +1042,12 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
         Eigen::Vector3d offset = cur_transform.translation() - start_transform.translation();
         Eigen::AngleAxisd rotation;
         rotation.fromRotationMatrix(cur_transform.linear().transpose() * start_transform.linear());
-        if ((offset.array() > allowed_start_tolerance_).any() || rotation.angle() > allowed_start_tolerance_)
+        const double joint_start_tolerance = getAllowedStartToleranceJoint(joint_names[i]);
+        if (joint_start_tolerance != 0 &&
+            ((offset.array() > joint_start_tolerance).any() || rotation.angle() > joint_start_tolerance))
         {
           RCLCPP_ERROR_STREAM(logger_, "\nInvalid Trajectory: start point deviates from current robot state more than "
-                                           << allowed_start_tolerance_ << "\nmulti-dof joint '" << joint_names[i]
+                                           << joint_start_tolerance << "\nmulti-dof joint '" << joint_names[i]
                                            << "': pos delta: " << offset.transpose()
                                            << " rot delta: " << rotation.angle());
           return false;
@@ -980,7 +1072,7 @@ bool TrajectoryExecutionManager::configure(TrajectoryExecutionContext& context,
   std::set<std::string> actuated_joints;
 
   auto is_actuated = [this](const std::string& joint_name) -> bool {
-    const moveit::core::JointModel* jm = robot_model_->getJointModel(joint_name);
+    const moveit::core::JointModel* jm = robot_model_->getJointOfVariable(joint_name);
     return (jm && !jm->isPassive() && !jm->getMimic() && jm->getType() != moveit::core::JointModel::FIXED);
   };
   for (const std::string& joint_name : trajectory.multi_dof_joint_trajectory.joint_names)
@@ -1048,7 +1140,13 @@ bool TrajectoryExecutionManager::configure(TrajectoryExecutionContext& context,
       {
         if (known_controllers_.find(controller) == known_controllers_.end())
         {
-          RCLCPP_ERROR(logger_, "Controller '%s' is not known", controller.c_str());
+          std::stringstream stream;
+          for (const auto& controller : known_controllers_)
+          {
+            stream << " `" << controller.first << '`';
+          }
+          RCLCPP_ERROR_STREAM(logger_,
+                              "Controller " << controller << " is not known. Known controllers: " << stream.str());
           return false;
         }
       }
@@ -1078,6 +1176,13 @@ bool TrajectoryExecutionManager::configure(TrajectoryExecutionContext& context,
     }
   }
   RCLCPP_ERROR(logger_, "Known controllers and their joints:\n%s", ss2.str().c_str());
+
+  if (!trajectory.multi_dof_joint_trajectory.joint_names.empty())
+  {
+    RCLCPP_WARN(logger_, "Hint: You can control multi-dof waypoints as joint trajectory by setting "
+                         "`trajectory_execution.control_multi_dof_joint_variables=True`");
+  }
+
   return false;
 }
 
@@ -1131,10 +1236,14 @@ void TrajectoryExecutionManager::stopExecution(bool auto_clear)
       }
 
       if (auto_clear)
+      {
         clear();
+      }
     }
     else
+    {
       execution_state_mutex_.unlock();
+    }
   }
   else if (execution_thread_)  // just in case we have some thread waiting to be joined from some point in the past, we
                                // join it now
@@ -1198,12 +1307,15 @@ void TrajectoryExecutionManager::clear()
 {
   if (execution_complete_)
   {
+    std::scoped_lock slock(execution_state_mutex_);
     for (TrajectoryExecutionContext* trajectory : trajectories_)
       delete trajectory;
     trajectories_.clear();
   }
   else
-    RCLCPP_ERROR(logger_, "Cannot push a new trajectory while another is being executed");
+  {
+    RCLCPP_FATAL(logger_, "Expecting execution_complete_ to be true!");
+  }
 }
 
 void TrajectoryExecutionManager::executeThread(const ExecutionCompleteCallback& callback,
@@ -1239,7 +1351,13 @@ void TrajectoryExecutionManager::executeThread(const ExecutionCompleteCallback& 
 
   // only report that execution finished successfully when the robot actually stopped moving
   if (last_execution_status_ == moveit_controller_manager::ExecutionStatus::SUCCEEDED)
-    waitForRobotToStop(*trajectories_[i - 1]);
+  {
+    std::scoped_lock slock(execution_state_mutex_);
+    if (!execution_complete_)
+    {
+      waitForRobotToStop(*trajectories_[i - 1]);
+    }
+  }
 
   RCLCPP_INFO(logger_, "Completed trajectory execution with status %s ...", last_execution_status_.asString().c_str());
 
@@ -1448,7 +1566,9 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
         }
       }
       else
+      {
         handle->waitForExecution();
+      }
 
       // if something made the trajectory stop, we stop this thread too
       if (execution_complete_)
@@ -1489,7 +1609,7 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
 bool TrajectoryExecutionManager::waitForRobotToStop(const TrajectoryExecutionContext& context, double wait_time)
 {
   // skip waiting for convergence?
-  if (allowed_start_tolerance_ == 0 || !wait_for_trajectory_completion_)
+  if ((allowed_start_tolerance_ == 0 && allowed_start_tolerance_joints_.empty()) || !wait_for_trajectory_completion_)
   {
     RCLCPP_INFO(logger_, "Not waiting for trajectory completion");
     return true;
@@ -1524,11 +1644,13 @@ bool TrajectoryExecutionManager::waitForRobotToStop(const TrajectoryExecutionCon
 
       for (std::size_t i = 0; i < n && !moved; ++i)
       {
-        const moveit::core::JointModel* jm = cur_state->getJointModel(joint_names[i]);
+        const moveit::core::JointModel* jm = robot_model_->getJointOfVariable(joint_names[i]);
         if (!jm)
           continue;  // joint vanished from robot state (shouldn't happen), but we don't care
 
-        if (fabs(cur_state->getJointPositions(jm)[0] - prev_state->getJointPositions(jm)[0]) > allowed_start_tolerance_)
+        const double joint_start_tolerance = getAllowedStartToleranceJoint(joint_names[i]);
+        if (fabs(jm->distance(cur_state->getJointPositions(jm), prev_state->getJointPositions(jm))) >
+            joint_start_tolerance)
         {
           moved = true;
           no_motion_count = 0;
@@ -1658,7 +1780,9 @@ bool TrajectoryExecutionManager::ensureActiveControllers(const std::vector<std::
         }
       }
       else
+      {
         RCLCPP_DEBUG_STREAM(logger_, "Controller " << controller << " is already active");
+      }
     }
     std::set<std::string> diff;
     std::set_difference(joints_to_be_deactivated.begin(), joints_to_be_deactivated.end(),
@@ -1712,10 +1836,14 @@ bool TrajectoryExecutionManager::ensureActiveControllers(const std::vector<std::
         return controller_manager_->switchControllers(controllers_to_activate, controllers_to_deactivate);
       }
       else
+      {
         return false;
+      }
     }
     else
+    {
       return true;
+    }
   }
   else
   {
@@ -1734,24 +1862,84 @@ bool TrajectoryExecutionManager::ensureActiveControllers(const std::vector<std::
 
 void TrajectoryExecutionManager::loadControllerParams()
 {
-  // TODO: Revise XmlRpc parameter lookup
-  // XmlRpc::XmlRpcValue controller_list;
-  // if (node_->get_parameter("controller_list", controller_list) &&
-  //     controller_list.getType() == XmlRpc::XmlRpcValue::TypeArray)
-  // {
-  //   for (int i = 0; i < controller_list.size(); ++i)  // NOLINT(modernize-loop-convert)
-  //   {
-  //     XmlRpc::XmlRpcValue& controller = controller_list[i];
-  //     if (controller.hasMember("name"))
-  //     {
-  //       if (controller.hasMember("allowed_execution_duration_scaling"))
-  //         controller_allowed_execution_duration_scaling_[std::string(controller["name"])] =
-  //             controller["allowed_execution_duration_scaling"];
-  //       if (controller.hasMember("allowed_goal_duration_margin"))
-  //         controller_allowed_goal_duration_margin_[std::string(controller["name"])] =
-  //             controller["allowed_goal_duration_margin"];
-  //     }
-  //   }
-  // }
+  for (const auto& controller : known_controllers_)
+  {
+    const std::string& controller_name = controller.first;
+    for (const auto& controller_manager_name : controller_manager_loader_->getDeclaredClasses())
+    {
+      const std::string parameter_prefix =
+          controller_manager_loader_->getClassPackage(controller_manager_name) + "." + controller_name;
+
+      double allowed_execution_duration_scaling;
+      if (node_->get_parameter(parameter_prefix + ".allowed_execution_duration_scaling",
+                               allowed_execution_duration_scaling))
+        controller_allowed_execution_duration_scaling_.insert({ controller_name, allowed_execution_duration_scaling });
+
+      double allowed_goal_duration_margin;
+      if (node_->get_parameter(parameter_prefix + ".allowed_goal_duration_margin", allowed_goal_duration_margin))
+        controller_allowed_goal_duration_margin_.insert({ controller_name, allowed_goal_duration_margin });
+    }
+  }
 }
+
+double TrajectoryExecutionManager::getAllowedStartToleranceJoint(const std::string& joint_name) const
+{
+  auto start_tolerance_it = allowed_start_tolerance_joints_.find(joint_name);
+  return start_tolerance_it != allowed_start_tolerance_joints_.end() ? start_tolerance_it->second :
+                                                                       allowed_start_tolerance_;
+}
+
+void TrajectoryExecutionManager::setAllowedStartToleranceJoint(const std::string& parameter_name,
+                                                               double joint_start_tolerance)
+{
+  if (joint_start_tolerance < 0)
+  {
+    RCLCPP_WARN(logger_, "%s has a negative value. The start tolerance value for that joint was not updated.",
+                parameter_name.c_str());
+    return;
+  }
+
+  // get the joint name by removing the parameter prefix if necessary
+  std::string joint_name = parameter_name;
+  const std::string parameter_prefix = "trajectory_execution.allowed_start_tolerance_joints.";
+  if (parameter_name.find(parameter_prefix) == 0)
+    joint_name = joint_name.substr(parameter_prefix.length());  // remove prefix
+
+  if (!robot_model_->hasJointModel(joint_name))
+  {
+    RCLCPP_WARN(logger_,
+                "Joint '%s' was not found in the robot model. "
+                "The start tolerance value for that joint was not updated.",
+                joint_name.c_str());
+    return;
+  }
+
+  allowed_start_tolerance_joints_.insert_or_assign(joint_name, joint_start_tolerance);
+}
+
+void TrajectoryExecutionManager::initializeAllowedStartToleranceJoints()
+{
+  allowed_start_tolerance_joints_.clear();
+
+  // retrieve all parameters under "trajectory_execution.allowed_start_tolerance_joints"
+  // that correspond to existing joints in the robot model
+  for (const auto& joint_name : robot_model_->getJointModelNames())
+  {
+    double joint_start_tolerance;
+    const std::string parameter_name = "trajectory_execution.allowed_start_tolerance_joints." + joint_name;
+    if (node_->get_parameter(parameter_name, joint_start_tolerance))
+    {
+      if (joint_start_tolerance < 0)
+      {
+        RCLCPP_WARN(logger_,
+                    "%s has a negative value. The start tolerance value for that joint "
+                    "will default to allowed_start_tolerance.",
+                    parameter_name.c_str());
+        continue;
+      }
+      allowed_start_tolerance_joints_.insert({ joint_name, joint_start_tolerance });
+    }
+  }
+}
+
 }  // namespace trajectory_execution_manager

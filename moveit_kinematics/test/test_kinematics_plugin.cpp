@@ -39,21 +39,22 @@
 #include <memory>
 #include <functional>
 #include <pluginlib/class_loader.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 
 // MoveIt
-#include <moveit/kinematics_base/kinematics_base.h>
-#include <moveit/rdf_loader/rdf_loader.h>
-#include <moveit/robot_model/robot_model.h>
-#include <moveit/robot_state/robot_state.h>
-#include <moveit/kdl_kinematics_plugin/kdl_kinematics_plugin.h>
+#include <moveit/kinematics_base/kinematics_base.hpp>
+#include <moveit/rdf_loader/rdf_loader.hpp>
+#include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_state/robot_state.hpp>
+#include <moveit/kdl_kinematics_plugin/kdl_kinematics_plugin.hpp>
 
-#include <moveit/robot_state/conversions.h>
+#include <moveit/robot_state/conversions.hpp>
 #include <moveit_msgs/msg/display_trajectory.hpp>
-#include <moveit/robot_trajectory/robot_trajectory.h>
+#include <moveit/robot_trajectory/robot_trajectory.hpp>
 
-#include <moveit/utils/robot_model_test_utils.h>
+#include <moveit/utils/robot_model_test_utils.hpp>
 #include <moveit/utils/logger.hpp>
 
 rclcpp::Logger getLogger()
@@ -63,7 +64,6 @@ rclcpp::Logger getLogger()
 const std::string ROBOT_DESCRIPTION_PARAM = "robot_description";
 const double DEFAULT_SEARCH_DISCRETIZATION = 0.01f;
 const double EXPECTED_SUCCESS_RATE = 0.8;
-static const std::string UNDEFINED = "<undefined>";
 
 // As loading of parameters is quite slow, we share them across all tests
 class SharedData
@@ -403,7 +403,9 @@ TEST_F(KinematicsTest, randomWalkIK)
     auto pub = node_->create_publisher<moveit_msgs::msg::DisplayTrajectory>("display_random_walk", 1);
     traj.getRobotTrajectoryMsg(msg.trajectory[0]);
     pub->publish(msg);
-    rclcpp::spin_some(node_);
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node_);
+    executor.spin_some();
   }
 }
 

@@ -35,8 +35,8 @@
 /* Author: Ioan Sucan, Adam Leeper */
 
 #include <math.h>
-#include <moveit/robot_trajectory/robot_trajectory.h>
-#include <moveit/robot_state/conversions.h>
+#include <moveit/robot_trajectory/robot_trajectory.hpp>
+#include <moveit/robot_state/conversions.hpp>
 #include <rclcpp/duration.hpp>
 #include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
@@ -115,13 +115,17 @@ double RobotTrajectory::getAverageSegmentDuration() const
       return 0.0;
     }
     else
+    {
       return getDuration() / static_cast<double>(duration_from_previous_.size() - 1);
+    }
   }
   else
+  {
     return getDuration() / static_cast<double>(duration_from_previous_.size());
+  }
 }
 
-void RobotTrajectory::swap(RobotTrajectory& other)
+void RobotTrajectory::swap(RobotTrajectory& other) noexcept
 {
   robot_model_.swap(other.robot_model_);
   std::swap(group_, other.group_);
@@ -373,29 +377,36 @@ void RobotTrajectory::getRobotTrajectoryMsg(moveit_msgs::msg::RobotTrajectory& t
         {
           const std::vector<std::string> names = mdof[j]->getVariableNames();
           const double* velocities = waypoints_[i]->getJointVelocities(mdof[j]);
+          const double* accelerations = waypoints_[i]->getJointAccelerations(mdof[j]);
 
           geometry_msgs::msg::Twist point_velocity;
+          geometry_msgs::msg::Twist point_acceleration;
 
           for (std::size_t k = 0; k < names.size(); ++k)
           {
             if (names[k].find("/x") != std::string::npos)
             {
               point_velocity.linear.x = velocities[k];
+              point_acceleration.linear.x = accelerations[k];
             }
             else if (names[k].find("/y") != std::string::npos)
             {
               point_velocity.linear.y = velocities[k];
+              point_acceleration.linear.y = accelerations[k];
             }
             else if (names[k].find("/z") != std::string::npos)
             {
               point_velocity.linear.z = velocities[k];
+              point_acceleration.linear.z = accelerations[k];
             }
             else if (names[k].find("/theta") != std::string::npos)
             {
               point_velocity.angular.z = velocities[k];
+              point_acceleration.angular.z = accelerations[k];
             }
           }
           trajectory.multi_dof_joint_trajectory.points[i].velocities.push_back(point_velocity);
+          trajectory.multi_dof_joint_trajectory.points[i].accelerations.push_back(point_acceleration);
         }
       }
       if (duration_from_previous_.size() > i)
@@ -477,8 +488,67 @@ RobotTrajectory& RobotTrajectory::setRobotTrajectoryMsg(const moveit::core::Robo
     {
       for (std::size_t j = 0; j < trajectory.multi_dof_joint_trajectory.joint_names.size(); ++j)
       {
+        const auto& joint_name = trajectory.multi_dof_joint_trajectory.joint_names[j];
         Eigen::Isometry3d t = tf2::transformToEigen(trajectory.multi_dof_joint_trajectory.points[i].transforms[j]);
-        st->setJointPositions(trajectory.multi_dof_joint_trajectory.joint_names[j], t);
+        st->setJointPositions(joint_name, t);
+
+        if (!trajectory.multi_dof_joint_trajectory.points[i].velocities.empty())
+        {
+          // Note: angular x and y are not currently supported
+          const auto names = st->getVariableNames();
+
+          for (const auto& name : names)
+          {
+            if (name.find("/x") != std::string::npos)
+            {
+              st->setVariableVelocity(joint_name + "/x",
+                                      trajectory.multi_dof_joint_trajectory.points[i].velocities[j].linear.x);
+            }
+            else if (name.find("/y") != std::string::npos)
+            {
+              st->setVariableVelocity(joint_name + "/y",
+                                      trajectory.multi_dof_joint_trajectory.points[i].velocities[j].linear.y);
+            }
+            else if (name.find("/z") != std::string::npos)
+            {
+              st->setVariableVelocity(joint_name + "/z",
+                                      trajectory.multi_dof_joint_trajectory.points[i].velocities[j].linear.z);
+            }
+            else if (name.find("/theta") != std::string::npos)
+            {
+              st->setVariableVelocity(joint_name + "/theta",
+                                      trajectory.multi_dof_joint_trajectory.points[i].velocities[j].angular.z);
+            }
+          }
+        }
+        if (!trajectory.multi_dof_joint_trajectory.points[i].accelerations.empty())
+        {
+          // Note: angular x and y are not currently supported
+          const auto names = st->getVariableNames();
+          for (const auto& name : names)
+          {
+            if (name.find("/x") != std::string::npos)
+            {
+              st->setVariableAcceleration(joint_name + "/x",
+                                          trajectory.multi_dof_joint_trajectory.points[i].accelerations[j].linear.x);
+            }
+            else if (name.find("/y") != std::string::npos)
+            {
+              st->setVariableAcceleration(joint_name + "/y",
+                                          trajectory.multi_dof_joint_trajectory.points[i].accelerations[j].linear.y);
+            }
+            else if (name.find("/z") != std::string::npos)
+            {
+              st->setVariableAcceleration(joint_name + "/z",
+                                          trajectory.multi_dof_joint_trajectory.points[i].accelerations[j].linear.z);
+            }
+            else if (name.find("/theta") != std::string::npos)
+            {
+              st->setVariableAcceleration(joint_name + "/theta",
+                                          trajectory.multi_dof_joint_trajectory.points[i].accelerations[j].angular.z);
+            }
+          }
+        }
       }
       this_time_stamp = rclcpp::Time(trajectory.multi_dof_joint_trajectory.header.stamp) +
                         trajectory.multi_dof_joint_trajectory.points[i].time_from_start;
@@ -502,7 +572,7 @@ RobotTrajectory& RobotTrajectory::setRobotTrajectoryMsg(const moveit::core::Robo
 void RobotTrajectory::findWayPointIndicesForDurationAfterStart(double duration, int& before, int& after,
                                                                double& blend) const
 {
-  if (duration < 0.0)
+  if (duration < 0.0 || waypoints_.empty())
   {
     before = 0;
     after = 0;
@@ -515,7 +585,7 @@ void RobotTrajectory::findWayPointIndicesForDurationAfterStart(double duration, 
   double running_duration = 0.0;
   for (; index < num_points; ++index)
   {
-    running_duration += duration_from_previous_[index];
+    running_duration += duration_from_previous_.at(index);
     if (running_duration >= duration)
       break;
   }
@@ -523,14 +593,14 @@ void RobotTrajectory::findWayPointIndicesForDurationAfterStart(double duration, 
   after = std::min<int>(index, num_points - 1);
 
   // Compute duration blend
-  double before_time = running_duration - duration_from_previous_[index];
   if (after == before)
   {
     blend = 1.0;
   }
   else
   {
-    blend = (duration - before_time) / duration_from_previous_[index];
+    double before_time = running_duration - duration_from_previous_.at(index);
+    blend = (duration - before_time) / duration_from_previous_.at(index);
   }
 }
 
@@ -705,6 +775,131 @@ std::optional<double> waypointDensity(const RobotTrajectory& trajectory)
   }
   // Trajectory is empty, a single point or path length is zero
   return std::nullopt;
+}
+
+std::optional<trajectory_msgs::msg::JointTrajectory> toJointTrajectory(const RobotTrajectory& trajectory,
+                                                                       bool include_mdof_joints,
+                                                                       const std::vector<std::string>& joint_filter)
+{
+  const auto group = trajectory.getGroup();
+  const auto& robot_model = trajectory.getRobotModel();
+  const std::vector<const moveit::core::JointModel*>& jnts =
+      group ? group->getActiveJointModels() : robot_model->getActiveJointModels();
+
+  if (trajectory.empty() || jnts.empty())
+    return std::nullopt;
+
+  trajectory_msgs::msg::JointTrajectory joint_trajectory;
+  std::vector<const moveit::core::JointModel*> onedof;
+  std::vector<const moveit::core::JointModel*> mdof;
+
+  for (const moveit::core::JointModel* active_joint : jnts)
+  {
+    // only consider joints listed in joint_filter
+    if (!joint_filter.empty() &&
+        std::find(joint_filter.begin(), joint_filter.end(), active_joint->getName()) == joint_filter.end())
+      continue;
+
+    if (active_joint->getVariableCount() == 1)
+    {
+      onedof.push_back(active_joint);
+    }
+    else if (include_mdof_joints)
+    {
+      mdof.push_back(active_joint);
+    }
+  }
+
+  for (const auto& joint : onedof)
+  {
+    joint_trajectory.joint_names.push_back(joint->getName());
+  }
+  for (const auto& joint : mdof)
+  {
+    for (const auto& name : joint->getVariableNames())
+    {
+      joint_trajectory.joint_names.push_back(name);
+    }
+  }
+
+  if (!onedof.empty() || !mdof.empty())
+  {
+    joint_trajectory.header.frame_id = robot_model->getModelFrame();
+    joint_trajectory.header.stamp = rclcpp::Time(0, 0, RCL_ROS_TIME);
+    joint_trajectory.points.resize(trajectory.getWayPointCount());
+  }
+
+  static const auto ZERO_DURATION = rclcpp::Duration::from_seconds(0);
+  double total_time = 0.0;
+  for (std::size_t i = 0; i < trajectory.getWayPointCount(); ++i)
+  {
+    total_time += trajectory.getWayPointDurationFromPrevious(i);
+    joint_trajectory.points[i].time_from_start = rclcpp::Duration::from_seconds(total_time);
+    const auto& waypoint = trajectory.getWayPoint(i);
+
+    if (!onedof.empty())
+    {
+      joint_trajectory.points[i].positions.resize(onedof.size());
+      joint_trajectory.points[i].velocities.reserve(onedof.size());
+
+      for (std::size_t j = 0; j < onedof.size(); ++j)
+      {
+        joint_trajectory.points[i].positions[j] = waypoint.getVariablePosition(onedof[j]->getFirstVariableIndex());
+        // if we have velocities/accelerations/effort, copy those too
+        if (waypoint.hasVelocities())
+        {
+          joint_trajectory.points[i].velocities.push_back(
+              waypoint.getVariableVelocity(onedof[j]->getFirstVariableIndex()));
+        }
+        if (waypoint.hasAccelerations())
+        {
+          joint_trajectory.points[i].accelerations.push_back(
+              waypoint.getVariableAcceleration(onedof[j]->getFirstVariableIndex()));
+        }
+        if (waypoint.hasEffort())
+        {
+          joint_trajectory.points[i].effort.push_back(waypoint.getVariableEffort(onedof[j]->getFirstVariableIndex()));
+        }
+      }
+      // clear velocities if we have an incomplete specification
+      if (joint_trajectory.points[i].velocities.size() != onedof.size())
+        joint_trajectory.points[i].velocities.clear();
+      // clear accelerations if we have an incomplete specification
+      if (joint_trajectory.points[i].accelerations.size() != onedof.size())
+        joint_trajectory.points[i].accelerations.clear();
+      // clear effort if we have an incomplete specification
+      if (joint_trajectory.points[i].effort.size() != onedof.size())
+        joint_trajectory.points[i].effort.clear();
+    }
+
+    if (!mdof.empty())
+    {
+      for (const auto joint : mdof)
+      {
+        // Add variable placeholders
+        const std::vector<std::string> names = joint->getVariableNames();
+        joint_trajectory.points[i].positions.reserve(joint_trajectory.points[i].positions.size() + names.size());
+
+        joint_trajectory.points[i].velocities.reserve(joint_trajectory.points[i].velocities.size() + names.size());
+
+        for (const auto& name : names)
+        {
+          joint_trajectory.points[i].positions.push_back(waypoint.getVariablePosition(name));
+
+          if (waypoint.hasVelocities())
+          {
+            joint_trajectory.points[i].velocities.push_back(waypoint.getVariableVelocity(name));
+          }
+          if (waypoint.hasAccelerations())
+          {
+            joint_trajectory.points[i].accelerations.push_back(waypoint.getVariableAcceleration(name));
+          }
+        }
+      }
+    }
+  }
+
+  return joint_trajectory;
 }
 
 }  // end of namespace robot_trajectory

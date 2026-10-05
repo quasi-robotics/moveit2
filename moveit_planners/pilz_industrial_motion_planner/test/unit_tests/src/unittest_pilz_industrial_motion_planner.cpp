@@ -36,11 +36,11 @@
 
 #include <iostream>
 
-#include <moveit/robot_model/robot_model.h>
-#include <moveit/robot_model_loader/robot_model_loader.h>
+#include <moveit/robot_model/robot_model.hpp>
+#include <moveit/robot_model_loader/robot_model_loader.hpp>
 
-#include <pilz_industrial_motion_planner/pilz_industrial_motion_planner.h>
-#include "test_utils.h"
+#include <pilz_industrial_motion_planner/pilz_industrial_motion_planner.hpp>
+#include "test_utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -128,7 +128,7 @@ TEST_F(CommandPlannerTest, ObtainLoadedPlanningAlgorithms)
   // Check for the algorithms
   std::vector<std::string> algs;
   planner_instance_->getPlanningAlgorithms(algs);
-  ASSERT_EQ(3u, algs.size()) << "Found more or less planning algorithms as expected! Found:"
+  ASSERT_EQ(4u, algs.size()) << "Found more or less planning algorithms as expected! Found:"
                              << ::testing::PrintToString(algs);
 
   // Collect the algorithms, check for uniqueness
@@ -141,6 +141,7 @@ TEST_F(CommandPlannerTest, ObtainLoadedPlanningAlgorithms)
   ASSERT_TRUE(algs_set.find("LIN") != algs_set.end());
   ASSERT_TRUE(algs_set.find("PTP") != algs_set.end());
   ASSERT_TRUE(algs_set.find("CIRC") != algs_set.end());
+  ASSERT_TRUE(algs_set.find("POLYLINE") != algs_set.end());
 }
 
 /**

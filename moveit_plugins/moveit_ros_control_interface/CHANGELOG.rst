@@ -2,6 +2,73 @@
 Changelog for package moveit_ros_control_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.2 (2026-09-16)
+-------------------
+
+2.15.1 (2026-08-29)
+-------------------
+* Fix CI on Ubuntu 26.04 (`#3818 <https://github.com/moveit/moveit2/issues/3818>`_)
+* Address review comments
+* add missing header for unordered_set
+* remove unused queue header
+* Avoid using deprecated FindBoost.cmake module
+* Contributors: Christian Rauch, Robert Haschke
+
+2.15.0 (2026-08-12)
+-------------------
+* Remove use of ament_target_dependencies: Take 2 (`#3726 <https://github.com/moveit/moveit2/issues/3726>`_)
+  ament_target_dependencies is replaced by exported CMake targets. Downstream
+  packages should link the namespaced targets (e.g. moveit_ros_planning::moveit_ros_planning).
+* CMake: remove boost system (`#3727 <https://github.com/moveit/moveit2/issues/3727>`_)
+* Fix ERROR stream + check only active controllers for multiple chained controllers (`#3556 <https://github.com/moveit/moveit2/issues/3556>`_)
+* Contributors: Guilhem Saurel, Nathan Brooks, thomaspeyrucain
+
+2.14.1 (2025-09-09)
+-------------------
+
+2.14.0 (2025-06-13)
+-------------------
+
+2.13.2 (2025-04-16)
+-------------------
+
+2.13.1 (2025-04-15)
+-------------------
+* ROS Parameter for service call timeout for ros_control controllers (`#3419 <https://github.com/ros-planning/moveit2/issues/3419>`_)
+* SERVICE_CALL_TIMEOUT = 1 second is harsh 🥵 (`#3382 <https://github.com/ros-planning/moveit2/issues/3382>`_)
+* Contributors: Ashwin Sajith Nambiar, Yoan Mollard
+
+2.13.0 (2025-02-15)
+-------------------
+* Add logic to Ros2ControlManager to match ros2_control (`#3332 <https://github.com/ros-planning/moveit2/issues/3332>`_)
+* Fix Ros2ControlManager chained controller logic (`#3301 <https://github.com/ros-planning/moveit2/issues/3301>`_)
+* Parallel gripper controller (`#3246 <https://github.com/ros-planning/moveit2/issues/3246>`_)
+* Update controller_manager_plugin.cpp (`#3179 <https://github.com/ros-planning/moveit2/issues/3179>`_)
+  Fixing the bug where the namespace is not properly applied when using Ros2ControlMultiManager
+* Contributors: Marq Rasmussen, Paul Gesel, Seohyeon Ryu
+
+2.12.0 (2024-11-29)
+-------------------
+* Enhancement/use hpp for headers (`#3113 <https://github.com/ros-planning/moveit2/issues/3113>`_)
+* Contributors: Tom Noble
+
+2.11.0 (2024-09-16)
+-------------------
+
+2.10.0 (2024-06-13)
+-------------------
+* Revert "Simplify controller manager namespacing (`#2210 <https://github.com/moveit/moveit2/issues/2210>`_)"
+  This reverts commit 55df0bccd5e884649780b4ceeee80891e563b57b.
+  The deprecated constructor was being used in the same file
+  for the exact use case of enabling namespaces that are not
+  specified by the parameter. There is no replacement for
+  supporting a dynamic server lookup, however the parameter
+  logic could still use simplification.
+* Unify log names (`#2720 <https://github.com/moveit/moveit2/issues/2720>`_)
+  Co-authored-by: Abishalini Sivaraman <abi.gpuram@gmail.com>
+* CMake format and lint in pre-commit (`#2683 <https://github.com/moveit/moveit2/issues/2683>`_)
+* Contributors: Henning Kayser, Sebastian Jahr, Tyler Weaver
+
 2.9.0 (2024-01-09)
 ------------------
 * Fix warning and cleanup unneeded placeholders (`#2566 <https://github.com/ros-planning/moveit2/issues/2566>`_)

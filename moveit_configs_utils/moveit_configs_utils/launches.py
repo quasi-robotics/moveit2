@@ -59,6 +59,7 @@ def generate_moveit_rviz_launch(moveit_config):
     rviz_parameters = [
         moveit_config.planning_pipelines,
         moveit_config.robot_description_kinematics,
+        moveit_config.joint_limits,
     ]
 
     add_debuggable_node(
@@ -115,17 +116,31 @@ def generate_static_virtual_joint_tfs_launch(moveit_config):
     return ld
 
 
-def generate_spawn_controllers_launch(moveit_config):
+def generate_spawn_controllers_launch(moveit_config, controller_manager_timeout=None):
     controller_names = moveit_config.trajectory_execution.get(
         "moveit_simple_controller_manager", {}
     ).get("controller_names", [])
     ld = LaunchDescription()
+    # Pass the same ros2_controllers.yaml to the controller spawners as to the controller_manager
+    ros2_controllers_path = moveit_config.package_path / "config/ros2_controllers.yaml"
+    spawner_args = (
+        ["--param-file", str(ros2_controllers_path)]
+        if ros2_controllers_path.exists()
+        else []
+    )
+    # Callers that start the controller_manager in the same launch file may need
+    # to wait longer than the spawner's default for it to come up.
+    if controller_manager_timeout is not None:
+        spawner_args += [
+            "--controller-manager-timeout",
+            str(controller_manager_timeout),
+        ]
     for controller in controller_names + ["joint_state_broadcaster"]:
         ld.add_action(
             Node(
                 package="controller_manager",
                 executable="spawner",
-                arguments=[controller],
+                arguments=[controller] + spawner_args,
                 output="screen",
             )
         )
@@ -204,7 +219,12 @@ def generate_move_group_launch(moveit_config):
         )
     )
     # inhibit these default MoveGroup capabilities (space separated)
-    ld.add_action(DeclareLaunchArgument("disable_capabilities", default_value=""))
+    ld.add_action(
+        DeclareLaunchArgument(
+            "disable_capabilities",
+            default_value=moveit_config.move_group_capabilities["disable_capabilities"],
+        )
+    )
 
     # do not copy dynamics information from /joint_states to internal robot monitoring
     # default to false, because almost nothing in move_group relies on this information
@@ -244,7 +264,7 @@ def generate_move_group_launch(moveit_config):
         parameters=move_group_params,
         extra_debug_args=["--debug"],
         # Set the display variable, in case OpenGL code is used internally
-        additional_env={"DISPLAY": os.environ["DISPLAY"]},
+        additional_env={"DISPLAY": os.environ.get("DISPLAY", "")},
     )
     return ld
 

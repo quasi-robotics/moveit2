@@ -41,8 +41,8 @@
 
 #include <Eigen/Geometry>
 
-#include <moveit/planning_scene/planning_scene.h>
-#include <moveit/kinematic_constraints/kinematic_constraint.h>
+#include <moveit/planning_scene/planning_scene.hpp>
+#include <moveit/kinematic_constraints/kinematic_constraint.hpp>
 
 #include <stomp_moveit/stomp_moveit_task.hpp>
 #include <stomp_moveit/conversion_functions.hpp>
@@ -168,7 +168,7 @@ CostFn getCostFunctionFromStateValidator(const StateValidatorFn& state_validator
       const long kernel_start = mu - static_cast<long>(sigma) * 4;
       const long kernel_end = mu + static_cast<long>(sigma) * 4;
       const long bounded_kernel_start = std::max(0l, kernel_start);
-      const long bounded_kernel_end = std::min(values.cols() - 1, kernel_end);
+      const long bounded_kernel_end = std::min(static_cast<long>(values.cols()) - 1, kernel_end);
       for (auto j = bounded_kernel_start; j <= bounded_kernel_end; ++j)
       {
         costs(j) = std::exp(-std::pow(j - mu, 2) / (2 * std::pow(sigma, 2))) / (sigma * std::sqrt(2 * M_PI));

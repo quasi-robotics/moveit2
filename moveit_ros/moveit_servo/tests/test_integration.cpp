@@ -46,10 +46,12 @@ namespace
 
 TEST_F(ServoCppFixture, JointJogTest)
 {
+  planning_scene_monitor::LockedPlanningSceneRO locked_scene(planning_scene_monitor_);
+  auto robot_state = std::make_shared<moveit::core::RobotState>(locked_scene->getCurrentState());
+
   moveit_servo::StatusCode status_curr, status_next, status_initial;
   moveit_servo::JointJogCommand joint_jog_z{ { "panda_joint7" }, { 1.0 } };
   moveit_servo::JointJogCommand zero_joint_jog;
-  moveit::core::RobotStatePtr robot_state = planning_scene_monitor_->getStateMonitor()->getCurrentState();
 
   // Compute next state.
   servo_test_instance_->setCommandType(moveit_servo::CommandType::JOINT_JOG);
@@ -66,16 +68,18 @@ TEST_F(ServoCppFixture, JointJogTest)
 
   // Check against manually verified value
   double delta = next_state.positions[6] - curr_state.positions[6];
-  constexpr double tol = 0.00001;
-  ASSERT_NEAR(delta, 0.02, tol);
+  constexpr double tol = 1.0e-5;
+  ASSERT_NEAR(delta, 0.01, tol);
 }
 
 TEST_F(ServoCppFixture, TwistTest)
 {
+  planning_scene_monitor::LockedPlanningSceneRO locked_scene(planning_scene_monitor_);
+  auto robot_state = std::make_shared<moveit::core::RobotState>(locked_scene->getCurrentState());
+
   moveit_servo::StatusCode status_curr, status_next, status_initial;
   moveit_servo::TwistCommand twist_non_zero{ "panda_link0", { 0.0, 0.0, 0.0, 0.0, 0.0, 0.1 } };
   moveit_servo::TwistCommand twist_zero{ "panda_link0", { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
-  moveit::core::RobotStatePtr robot_state = planning_scene_monitor_->getStateMonitor()->getCurrentState();
 
   servo_test_instance_->setCommandType(moveit_servo::CommandType::TWIST);
   status_initial = servo_test_instance_->getStatus();
@@ -89,18 +93,20 @@ TEST_F(ServoCppFixture, TwistTest)
   ASSERT_EQ(status_next, moveit_servo::StatusCode::NO_WARNING);
 
   // Check against manually verified value
-  constexpr double expected_delta = -0.001693;
+  constexpr double expected_delta = -0.000338;
   double delta = next_state.positions[6] - curr_state.positions[6];
-  constexpr double tol = 0.00001;
+  constexpr double tol = 1.0e-5;
   ASSERT_NEAR(delta, expected_delta, tol);
 }
 
 TEST_F(ServoCppFixture, NonPlanningFrameTwistTest)
 {
+  planning_scene_monitor::LockedPlanningSceneRO locked_scene(planning_scene_monitor_);
+  auto robot_state = std::make_shared<moveit::core::RobotState>(locked_scene->getCurrentState());
+
   moveit_servo::StatusCode status_curr, status_next, status_initial;
   moveit_servo::TwistCommand twist_non_zero{ "panda_link8", { 0.0, 0.0, 0.0, 0.0, 0.0, 0.1 } };
   moveit_servo::TwistCommand twist_zero{ "panda_link8", { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 } };
-  moveit::core::RobotStatePtr robot_state = planning_scene_monitor_->getStateMonitor()->getCurrentState();
 
   servo_test_instance_->setCommandType(moveit_servo::CommandType::TWIST);
   status_initial = servo_test_instance_->getStatus();
@@ -114,14 +120,17 @@ TEST_F(ServoCppFixture, NonPlanningFrameTwistTest)
   ASSERT_EQ(status_next, moveit_servo::StatusCode::NO_WARNING);
 
   // Check against manually verified value
-  constexpr double expected_delta = 0.001693;
+  constexpr double expected_delta = 0.000338;
   double delta = next_state.positions[6] - curr_state.positions[6];
-  constexpr double tol = 0.00001;
+  constexpr double tol = 1.0e-5;
   ASSERT_NEAR(delta, expected_delta, tol);
 }
 
 TEST_F(ServoCppFixture, PoseTest)
 {
+  planning_scene_monitor::LockedPlanningSceneRO locked_scene(planning_scene_monitor_);
+  auto robot_state = std::make_shared<moveit::core::RobotState>(locked_scene->getCurrentState());
+
   moveit_servo::StatusCode status_curr, status_next, status_initial;
   moveit_servo::PoseCommand zero_pose, non_zero_pose;
   zero_pose.frame_id = "panda_link0";
@@ -135,7 +144,6 @@ TEST_F(ServoCppFixture, PoseTest)
   status_initial = servo_test_instance_->getStatus();
   ASSERT_EQ(status_initial, moveit_servo::StatusCode::NO_WARNING);
 
-  moveit::core::RobotStatePtr robot_state = planning_scene_monitor_->getStateMonitor()->getCurrentState();
   moveit_servo::KinematicState curr_state = servo_test_instance_->getNextJointState(robot_state, zero_pose);
   status_curr = servo_test_instance_->getStatus();
   ASSERT_EQ(status_curr, moveit_servo::StatusCode::NO_WARNING);
@@ -145,10 +153,43 @@ TEST_F(ServoCppFixture, PoseTest)
   ASSERT_EQ(status_next, moveit_servo::StatusCode::NO_WARNING);
 
   // Check against manually verified value
-  constexpr double expected_delta = 0.057420;
+  constexpr double expected_delta = 0.003364;
   double delta = next_state.positions[6] - curr_state.positions[6];
-  constexpr double tol = 0.00001;
+  constexpr double tol = 1.0e-5;
   ASSERT_NEAR(delta, expected_delta, tol);
+}
+
+TEST_F(ServoCppFixture, PoseHaltsAllJointsAtJointBound)
+{
+  planning_scene_monitor::LockedPlanningSceneRO locked_scene(planning_scene_monitor_);
+  auto robot_state = std::make_shared<moveit::core::RobotState>(locked_scene->getCurrentState());
+
+  const auto& joint_bounds = robot_state->getRobotModel()->getVariableBounds("panda_joint7");
+  const auto& margins = servo_params_.joint_limit_margins;
+  const double joint_margin = margins.size() == 1 ? margins.front() : margins.at(6);
+  robot_state->setVariablePosition("panda_joint7", joint_bounds.max_position_ - joint_margin - 1.0e-4);
+  robot_state->update();
+
+  moveit_servo::PoseCommand pose;
+  pose.frame_id = "panda_link0";
+  pose.pose = robot_state->getGlobalLinkTransform("panda_link8");
+  pose.pose.translation().x() += 0.01;
+  pose.pose.rotate(Eigen::AngleAxisd(M_PI / 2, Eigen::Vector3d::UnitZ()));
+
+  servo_test_instance_->setCommandType(moveit_servo::CommandType::POSE);
+  ASSERT_TRUE(servo_params_.halt_all_joints_in_cartesian_mode);
+
+  const moveit_servo::KinematicState current_state =
+      moveit_servo::extractRobotState(robot_state, servo_params_.move_group_name);
+  const moveit_servo::KinematicState next_state = servo_test_instance_->getNextJointState(robot_state, pose);
+
+  ASSERT_EQ(servo_test_instance_->getStatus(), moveit_servo::StatusCode::JOINT_BOUND);
+  ASSERT_EQ(next_state.positions.size(), current_state.positions.size());
+  for (Eigen::Index index = 0; index < current_state.positions.size(); ++index)
+  {
+    EXPECT_DOUBLE_EQ(next_state.positions[index], current_state.positions[index]);
+    EXPECT_DOUBLE_EQ(next_state.velocities[index], 0.0);
+  }
 }
 
 }  // namespace

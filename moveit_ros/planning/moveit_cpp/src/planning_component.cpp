@@ -36,11 +36,11 @@
 
 #include <stdexcept>
 
-#include <moveit/moveit_cpp/planning_component.h>
-#include <moveit/kinematic_constraints/utils.h>
-#include <moveit/planning_pipeline/planning_pipeline.h>
-#include <moveit/planning_scene_monitor/planning_scene_monitor.h>
-#include <moveit/robot_state/conversions.h>
+#include <moveit/moveit_cpp/planning_component.hpp>
+#include <moveit/kinematic_constraints/utils.hpp>
+#include <moveit/planning_pipeline/planning_pipeline.hpp>
+#include <moveit/planning_scene_monitor/planning_scene_monitor.hpp>
+#include <moveit/robot_state/conversions.hpp>
 #include <thread>
 #include <moveit/utils/logger.hpp>
 
@@ -131,11 +131,7 @@ planning_interface::MotionPlanResponse PlanningComponent::plan(const PlanRequest
   {  // Clone current planning scene
     auto planning_scene_monitor = moveit_cpp_->getPlanningSceneMonitorNonConst();
     planning_scene_monitor->updateFrameTransforms();
-    planning_scene = [planning_scene_monitor] {
-      planning_scene_monitor::LockedPlanningSceneRO ls(planning_scene_monitor);
-      return planning_scene::PlanningScene::clone(ls);
-    }();
-    planning_scene_monitor.reset();  // release this pointer}
+    planning_scene = planning_scene_monitor->copyPlanningScene();
   }
   // Init MotionPlanRequest
   ::planning_interface::MotionPlanRequest request = getMotionPlanRequest(parameters);

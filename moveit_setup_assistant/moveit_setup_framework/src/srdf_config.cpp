@@ -34,7 +34,7 @@
 #include <moveit_setup_framework/data/srdf_config.hpp>
 #include <moveit_setup_framework/data_warehouse.hpp>
 #include <moveit_setup_framework/utilities.hpp>
-#include <moveit/rdf_loader/rdf_loader.h>
+#include <moveit/rdf_loader/rdf_loader.hpp>
 
 namespace moveit_setup
 {
@@ -88,7 +88,7 @@ void SRDFConfig::loadSRDFFile(const std::filesystem::path& srdf_file_path, const
   loadURDFModel();
 
   std::string srdf_string;
-  if (!rdf_loader::RDFLoader::loadXmlFileToString(srdf_string, srdf_path_, xacro_args))
+  if (!rdf_loader::RDFLoader::loadXmlFileToString(srdf_string, srdf_path_.string(), xacro_args))
   {
     throw std::runtime_error("SRDF file not found: " + srdf_path_.string());
   }
@@ -300,7 +300,7 @@ bool SRDFConfig::GeneratedJointLimits::writeYaml(YAML::Emitter& emitter)
 
     // Output property
     emitter << YAML::Key << "max_velocity";
-    emitter << YAML::Value << std::min(fabs(b.max_velocity_), fabs(b.min_velocity_));
+    emitter << YAML::Value << static_cast<double>(std::min(fabs(b.max_velocity_), fabs(b.min_velocity_)));
 
     // Output property
     emitter << YAML::Key << "has_acceleration_limits";
@@ -315,7 +315,7 @@ bool SRDFConfig::GeneratedJointLimits::writeYaml(YAML::Emitter& emitter)
 
     // Output property
     emitter << YAML::Key << "max_acceleration";
-    emitter << YAML::Value << std::min(fabs(b.max_acceleration_), fabs(b.min_acceleration_));
+    emitter << YAML::Value << static_cast<double>(std::min(fabs(b.max_acceleration_), fabs(b.min_acceleration_)));
 
     emitter << YAML::EndMap;
   }

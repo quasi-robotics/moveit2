@@ -34,7 +34,7 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/warehouse/planning_scene_storage.h>
+#include <moveit/warehouse/planning_scene_storage.hpp>
 #include <utility>
 #include <rclcpp/serialization.hpp>
 #include <regex>
@@ -219,7 +219,9 @@ bool moveit_warehouse::PlanningSceneStorage::getPlanningSceneWorld(moveit_msgs::
     return true;
   }
   else
+  {
     return false;
+  }
 }
 
 bool moveit_warehouse::PlanningSceneStorage::getPlanningScene(PlanningSceneWithMetadata& scene_m,

@@ -34,8 +34,8 @@
 
 /* Author: Robert Haschke */
 
-#include <moveit/motion_planning_rviz_plugin/motion_planning_frame_joints_widget.h>
-#include <moveit/motion_planning_rviz_plugin/motion_planning_display.h>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_frame_joints_widget.hpp>
+#include <moveit/motion_planning_rviz_plugin/motion_planning_display.hpp>
 
 #include "ui_motion_planning_rviz_plugin_frame_joints.h"
 #include <QPainter>
@@ -265,6 +265,8 @@ void MotionPlanningFrameJointsWidget::queryGoalStateChanged()
 
 void MotionPlanningFrameJointsWidget::setActiveModel(JMGItemModel* model)
 {
+  if (ui_->joints_view_->model() == model)
+    return;
   ui_->joints_view_->setModel(model);
   ui_->joints_view_label_->setText(
       QString("Group joints of %1 state").arg(model == start_state_model_.get() ? "start" : "goal"));
@@ -486,7 +488,11 @@ bool JointsWidgetEventFilter::eventFilter(QObject* /*target*/, QEvent* event)
   if (event->type() == QEvent::MouseButtonPress)
   {
     QAbstractItemView* view = qobject_cast<QAbstractItemView*>(parent());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QModelIndex index = view->indexAt(static_cast<QMouseEvent*>(event)->position().toPoint());
+#else
     QModelIndex index = view->indexAt(static_cast<QMouseEvent*>(event)->pos());
+#endif
     if (index.flags() & Qt::ItemIsEditable)  // mouse event on any editable slider?
     {
       view->setCurrentIndex(index);
@@ -529,7 +535,11 @@ void ProgressBarEditor::mousePressEvent(QMouseEvent* event)
 
 void ProgressBarEditor::mouseMoveEvent(QMouseEvent* event)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+  double v = std::min(max_, std::max(min_, min_ + event->position().x() * (max_ - min_) / width()));
+#else
   double v = std::min(max_, std::max(min_, min_ + event->x() * (max_ - min_) / width()));
+#endif
   if (value_ != v)
   {
     value_ = v;

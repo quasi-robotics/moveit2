@@ -34,8 +34,19 @@ target_include_directories(
          $<INSTALL_INTERFACE:include/moveit_ros_move_group>)
 set_target_properties(moveit_move_group_capabilities_base
                       PROPERTIES VERSION "${moveit_ros_move_group_VERSION}")
-ament_target_dependencies(moveit_move_group_capabilities_base
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS})
+target_link_libraries(
+  moveit_move_group_capabilities_base
+  fmt::fmt
+  moveit_core::moveit_core
+  moveit_ros_occupancy_map_monitor::moveit_ros_occupancy_map_monitor
+  moveit_ros_planning::moveit_ros_planning
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  rclcpp_action::rclcpp_action
+  ${std_srvs_TARGETS}
+  tf2::tf2
+  tf2_geometry_msgs::tf2_geometry_msgs
+  tf2_ros::tf2_ros)
 
 add_library(
   moveit_move_group_default_capabilities SHARED
@@ -46,10 +57,13 @@ add_library(
   src/default_capabilities/get_group_urdf_capability.cpp
   src/default_capabilities/get_planning_scene_service_capability.cpp
   src/default_capabilities/kinematics_service_capability.cpp
+  src/default_capabilities/load_geometry_from_file_service_capability.cpp
   src/default_capabilities/move_action_capability.cpp
   src/default_capabilities/plan_service_capability.cpp
   src/default_capabilities/query_planners_service_capability.cpp
+  src/default_capabilities/save_geometry_to_file_service_capability.cpp
   src/default_capabilities/state_validation_service_capability.cpp
+  src/default_capabilities/multi_state_validation_service_capability.cpp
   src/default_capabilities/tf_publisher_capability.cpp)
 target_include_directories(
   moveit_move_group_default_capabilities
@@ -57,29 +71,76 @@ target_include_directories(
          $<INSTALL_INTERFACE:include/moveit_ros_move_group>)
 set_target_properties(moveit_move_group_default_capabilities
                       PROPERTIES VERSION "${moveit_ros_move_group_VERSION}")
-ament_target_dependencies(moveit_move_group_default_capabilities
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS})
-target_link_libraries(moveit_move_group_default_capabilities
-                      moveit_move_group_capabilities_base)
+target_link_libraries(
+  moveit_move_group_default_capabilities
+  moveit_move_group_capabilities_base
+  fmt::fmt
+  moveit_core::moveit_core
+  moveit_ros_occupancy_map_monitor::moveit_ros_occupancy_map_monitor
+  moveit_ros_planning::moveit_ros_planning
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  rclcpp_action::rclcpp_action
+  ${std_srvs_TARGETS}
+  tf2::tf2
+  tf2_geometry_msgs::tf2_geometry_msgs
+  tf2_ros::tf2_ros)
 
 add_executable(move_group src/move_group.cpp)
 target_include_directories(move_group PUBLIC include)
-ament_target_dependencies(move_group ${THIS_PACKAGE_INCLUDE_DEPENDS} Boost)
-target_link_libraries(move_group moveit_move_group_capabilities_base)
+target_link_libraries(
+  move_group
+  moveit_move_group_capabilities_base
+  fmt::fmt
+  moveit_core::moveit_core
+  moveit_ros_occupancy_map_monitor::moveit_ros_occupancy_map_monitor
+  moveit_ros_planning::moveit_ros_planning
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  rclcpp_action::rclcpp_action
+  ${std_srvs_TARGETS}
+  tf2::tf2
+  tf2_geometry_msgs::tf2_geometry_msgs
+  tf2_ros::tf2_ros
+  Boost::headers)
 
 add_executable(list_move_group_capabilities src/list_capabilities.cpp)
-ament_target_dependencies(list_move_group_capabilities
-                          ${THIS_PACKAGE_INCLUDE_DEPENDS})
-target_link_libraries(list_move_group_capabilities
-                      moveit_move_group_capabilities_base fmt)
+target_link_libraries(
+  list_move_group_capabilities
+  moveit_move_group_capabilities_base
+  fmt::fmt
+  moveit_core::moveit_core
+  moveit_ros_occupancy_map_monitor::moveit_ros_occupancy_map_monitor
+  moveit_ros_planning::moveit_ros_planning
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+  rclcpp_action::rclcpp_action
+  ${std_srvs_TARGETS}
+  tf2::tf2
+  tf2_geometry_msgs::tf2_geometry_msgs
+  tf2_ros::tf2_ros)
 
 install(TARGETS move_group list_move_group_capabilities
         RUNTIME DESTINATION lib/moveit_ros_move_group)
 
+# Create an umbrella INTERFACE target so downstream packages can link the
+# move_group capabilities API via moveit_ros_move_group::moveit_ros_move_group.
+# moveit_move_group_default_capabilities is a runtime pluginlib plugin and is
+# intentionally not part of this target.
+add_library(moveit_ros_move_group INTERFACE)
+target_link_libraries(moveit_ros_move_group
+                      INTERFACE moveit_move_group_capabilities_base)
+
+install(
+  TARGETS moveit_ros_move_group moveit_move_group_capabilities_base
+  EXPORT moveit_ros_move_groupTargets
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+  RUNTIME DESTINATION bin)
+
 install(
   TARGETS moveit_move_group_default_capabilities
-          moveit_move_group_capabilities_base
-  EXPORT moveit_ros_move_groupTargets
+  EXPORT moveit_move_group_default_capabilitiesTargets
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin)
@@ -95,7 +156,7 @@ pluginlib_export_plugin_description_file(
 if(BUILD_TESTING)
   # TODO(henningkayser): enable rostests find_package(rostest REQUIRED) #
   # rostest under development in ROS2
-  # https://github.com/ros-planning/moveit2/issues/23 this test is flaky
+  # https://github.com/moveit/moveit2/issues/23 this test is flaky
   # add_rostest(test/test_cancel_before_plan_execution.test)
   # add_rostest(test/test_check_state_validity_in_empty_scene.test)
 endif()
